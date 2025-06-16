@@ -16,7 +16,8 @@ import ShoppingScreen from '../screens/ShoppingScreen';
 import StockScreen from '../screens/StockScreen';
 import AddShoppingItem from '../screens/AddShoppingItem';
 import AIGenerate from '../screens/AIGenerate'; 
-import AddStockScreen from '../screens/AddStockScreen'; // <-- NOUVEL IMPORT : Import de AddStockScreen
+import AddStockScreen from '../screens/AddStockScreen'; 
+import EditStockScreen from '../screens/EditStockScreen'; // <-- ASSUREZ-VOUS QUE CET IMPORT EST PRÉSENT
 import { Member } from '../screens/ProfileScreen';
 
 // Types pour la navigation
@@ -34,8 +35,9 @@ export type RootStackParamList = {
   Stock: undefined;
   AddShoppingItem: undefined;
   AIGenerate: undefined;
-  AddStock: undefined; // <-- NOUVEAU : Ajout de AddStock à la liste des paramètres
-  UpdateStock: { itemToEdit: StockItem };
+  AddStock: undefined;
+  // <-- C'EST LE TYPE DE PARAMÈTRES POUR VOTRE ÉCRAN EditStock
+  EditStock: { item: { name: string; quantity: string; expiry: string; status: 'good' | 'warning' | 'urgent' }; itemIndex: number }; 
 };
 
 // Type pour les props des écrans du Tab Navigator
@@ -120,10 +122,15 @@ const AppNavigator: React.FC = () => {
           component={AIGenerate}
           options={{ headerShown: false }}
         />
-        {/* <-- NOUVEAU : Ajout de l'écran AddStock */}
         <Stack.Screen
           name="AddStock"
           component={AddStockScreen}
+          options={{ headerShown: false }}
+        />
+        {/* <-- NOUVEAU : C'EST LA LIGNE CLÉ À AJOUTER/VÉRIFIER */}
+        <Stack.Screen
+          name="EditStock" // Le nom de l'écran doit correspondre exactement
+          component={EditStockScreen} // Le composant à rendre pour cet écran
           options={{ headerShown: false }}
         />
       </Stack.Navigator>
