@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1052478477585",
+    "project_id": "cookeasy-e65b1",
+    "storage_bucket": "cookeasy-e65b1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1052478477585:android:039318e92580293658a8b0",
+        "android_client_info": {
+          "package_name": "com.cookeasy"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDd6SqYSd292jH5v4O7ynfMTfJoLAtBzbo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
