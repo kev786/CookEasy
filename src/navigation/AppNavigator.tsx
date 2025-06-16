@@ -15,7 +15,8 @@ import AddMemberScreen from '../screens/AddMemberScreen';
 import ShoppingScreen from '../screens/ShoppingScreen';
 import StockScreen from '../screens/StockScreen';
 import AddShoppingItem from '../screens/AddShoppingItem';
-import AIGenerate from '../screens/AIGenerate'; // Import ajouté
+import AIGenerate from '../screens/AIGenerate'; 
+import AddStockScreen from '../screens/AddStockScreen'; // <-- NOUVEL IMPORT : Import de AddStockScreen
 import { Member } from '../screens/ProfileScreen';
 
 // Types pour la navigation
@@ -33,6 +34,8 @@ export type RootStackParamList = {
   Stock: undefined;
   AddShoppingItem: undefined;
   AIGenerate: undefined;
+  AddStock: undefined; // <-- NOUVEAU : Ajout de AddStock à la liste des paramètres
+  UpdateStock: { itemToEdit: StockItem };
 };
 
 // Type pour les props des écrans du Tab Navigator
@@ -115,6 +118,12 @@ const AppNavigator: React.FC = () => {
         <Stack.Screen
           name="AIGenerate"
           component={AIGenerate}
+          options={{ headerShown: false }}
+        />
+        {/* <-- NOUVEAU : Ajout de l'écran AddStock */}
+        <Stack.Screen
+          name="AddStock"
+          component={AddStockScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>

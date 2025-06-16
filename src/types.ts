@@ -10,6 +10,8 @@ export type RootStackParamList = {
   RecipeDetail: { recipe: any };
   AddShoppingItem: undefined;
   AIGenerate: undefined;
+  AddStock: undefined;
+  UpdateStock: { itemToEdit: StockItem };
 };
 
 export interface Recipe {

@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Modal } from 'react-native';
+// src/screens/StockScreen.tsx
+
+import React from 'react'; // Pas besoin de useState si vous ne l'utilisez pas directement ici
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../types';
+import { RootStackParamList, StockItem } from '../types'; // Importez StockItem
 import { useAppContext } from '../context/AppContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Stock'>;
@@ -11,26 +13,26 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Stock'>;
 const StockScreen: React.FC<Props> = ({ navigation }) => {
   const { stock, setStock } = useAppContext();
 
+  // Calcul du nombre d'éléments par statut
   const goodItems = stock.filter((item) => item.status === 'good').length;
   const warningItems = stock.filter((item) => item.status === 'warning').length;
   const urgentItems = stock.filter((item) => item.status === 'urgent').length;
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [newItem, setNewItem] = useState({ name: '', quantity: '', expiry: '', status: 'good' as 'good' | 'warning' | 'urgent' });
+  // Fonction pour gérer la navigation vers l'écran de modification
+  const handleEditStock = (item: StockItem) => {
+    // Navigue vers l'écran 'UpdateStock' en passant l'élément complet à éditer
+    navigation.navigate('UpdateStock', { itemToEdit: item });
+  };
 
-  const handleAddStock = () => {
-    if (newItem.name && newItem.quantity && newItem.expiry) {
-      setStock([...stock, { ...newItem, expiry: new Date(newItem.expiry).toISOString().split('T')[0] }]);
-      setModalVisible(false);
-      setNewItem({ name: '', quantity: '', expiry: '', status: 'good' });
-    } else {
-      alert('Veuillez remplir tous les champs.');
-    }
+  // Fonction de suppression (inchangée)
+  const handleDeleteStock = (index: number) => {
+    console.log(`Supprimer l'élément à l'index: ${index}`);
+    setStock(prevStock => prevStock.filter((_, i) => i !== index));
   };
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+      {/* En-tête de la page */}
       <LinearGradient colors={['#f97316', '#ef4444']} style={styles.header}>
         <View style={styles.headerContent}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -46,8 +48,9 @@ const StockScreen: React.FC<Props> = ({ navigation }) => {
         </View>
       </LinearGradient>
 
+      {/* Contenu principal de l'écran avec défilement */}
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
-        {/* Alertes */}
+        {/* Grille d'alertes par statut */}
         <View style={styles.alertGrid}>
           <View style={styles.alertCardGood}>
             <Text style={styles.alertNumberGood}>{goodItems}</Text>
@@ -63,36 +66,52 @@ const StockScreen: React.FC<Props> = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Liste du stock */}
-        {stock.map((item, idx) => (
-          <View
-            key={idx}
-            style={[
-              styles.stockCard,
-              item.status === 'good' && styles.goodBorder,
-              item.status === 'warning' && styles.warningBorder,
-              item.status === 'urgent' && styles.urgentBorder,
-            ]}
-          >
-            <View style={styles.stockInfo}>
-              <Text style={styles.stockName}>{item.name}</Text>
-              <Text style={styles.stockDetail}>
-                Quantité: {item.quantity} • Expire le{' '}
-                {new Date(item.expiry).toLocaleDateString()}
-              </Text>
+        {/* Liste des éléments du stock */}
+        {stock.length === 0 ? (
+          <Text style={styles.emptyStockText}>Aucun produit en stock pour le moment. Ajoutez-en un !</Text>
+        ) : (
+          stock.map((item, idx) => (
+            <View
+              key={item.id || idx} // Utilisez l'ID unique si disponible, sinon l'index
+              style={[
+                styles.stockCard,
+                item.status === 'good' && styles.goodBorder,
+                item.status === 'warning' && styles.warningBorder,
+                item.status === 'urgent' && styles.urgentBorder,
+              ]}
+            >
+              <View style={styles.stockInfo}>
+                <Text style={styles.stockName}>{item.name}</Text>
+                <Text style={styles.stockDetail}>
+                  Quantité: {item.quantity} • Expire le{' '}
+                  {new Date(item.expiry).toLocaleDateString('fr-FR', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })}
+                </Text>
+              </View>
+              <View style={styles.stockActions}>
+                {/* Bouton d'édition qui navigue vers UpdateStockScreen */}
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => handleEditStock(item)} // Passer l'objet item entier
+                >
+                  <MaterialCommunityIcons name="pencil" size={16} color="#3b82f6" />
+                </TouchableOpacity>
+                {/* Bouton de suppression */}
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => handleDeleteStock(idx)}
+                >
+                  <MaterialCommunityIcons name="trash-can-outline" size={16} color="#ef4444" />
+                </TouchableOpacity>
+              </View>
             </View>
-            <View style={styles.stockActions}>
-              <TouchableOpacity style={styles.actionButton}>
-                <MaterialCommunityIcons name="pencil" size={16} color="#3b82f6" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionButton}>
-                <MaterialCommunityIcons name="trash-can-outline" size={16} color="#ef4444" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        ))}
+          ))
+        )}
 
-        {/* Bouton scanner */}
+        {/* Bouton Scanner un produit */}
         <TouchableOpacity style={styles.scanButton}>
           <LinearGradient colors={['#60a5fa', '#a855f7']} style={styles.gradientButton}>
             <MaterialCommunityIcons name="camera" size={20} color="#fff" style={styles.scanIcon} />
@@ -101,73 +120,13 @@ const StockScreen: React.FC<Props> = ({ navigation }) => {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Bouton flottant "+" */}
+      {/* Bouton flottant "+" pour ajouter un produit, navigue vers AddStockScreen */}
       <TouchableOpacity
         style={styles.floatingButton}
-        onPress={() => setModalVisible(true)}
+        onPress={() => navigation.navigate('AddStock')}
       >
         <MaterialCommunityIcons name="plus" size={24} color="#fff" />
       </TouchableOpacity>
-
-      {/* Modal pour ajouter un élément */}
-      <Modal
-        visible={modalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setModalVisible(false)}
-        >
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Ajouter un produit</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Nom du produit"
-              value={newItem.name}
-              onChangeText={(text) => setNewItem({ ...newItem, name: text })}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Quantité (ex: 500g, 2 kg)"
-              value={newItem.quantity}
-              onChangeText={(text) => setNewItem({ ...newItem, quantity: text })}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Date d'expiration (AAAA-MM-JJ)"
-              value={newItem.expiry}
-              onChangeText={(text) => setNewItem({ ...newItem, expiry: text })}
-            />
-            <View style={styles.statusContainer}>
-              <Text style={styles.statusLabel}>Statut :</Text>
-              <TouchableOpacity
-                style={[styles.statusButton, newItem.status === 'good' && styles.statusSelected]}
-                onPress={() => setNewItem({ ...newItem, status: 'good' })}
-              >
-                <Text style={styles.statusText}>Bon</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.statusButton, newItem.status === 'warning' && styles.statusSelected]}
-                onPress={() => setNewItem({ ...newItem, status: 'warning' })}
-              >
-                <Text style={styles.statusText}>Attention</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.statusButton, newItem.status === 'urgent' && styles.statusSelected]}
-                onPress={() => setNewItem({ ...newItem, status: 'urgent' })}
-              >
-                <Text style={styles.statusText}>Urgent</Text>
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity style={styles.addButton} onPress={handleAddStock}>
-              <Text style={styles.addButtonText}>Ajouter</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
     </View>
   );
 };
@@ -208,6 +167,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.20,
+    shadowRadius: 1.41,
   },
   goodBorder: { borderLeftColor: '#16a34a' },
   warningBorder: { borderLeftColor: '#facc15' },
@@ -216,12 +179,25 @@ const styles = StyleSheet.create({
   stockName: { fontSize: 16, fontWeight: '600', color: '#1F2937', marginBottom: 4 },
   stockDetail: { fontSize: 14, color: '#6B7280' },
   stockActions: { flexDirection: 'row', gap: 8 },
-  actionButton: { padding: 8, borderRadius: 999, backgroundColor: '#f3f4f6' },
-  scanButton: { marginTop: 16, marginBottom: 24 },
+  actionButton: {
+    padding: 8,
+    borderRadius: 999,
+    backgroundColor: '#f3f4f6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.18,
+    shadowRadius: 1.00,
+    elevation: 1,
+  },
+  scanButton: {
+    marginTop: 16,
+    marginBottom: 24,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
   gradientButton: {
     flexDirection: 'row',
     padding: 16,
-    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -229,59 +205,26 @@ const styles = StyleSheet.create({
   scanButtonText: { fontSize: 16, fontWeight: '600', color: '#fff' },
   floatingButton: {
     position: 'absolute',
-    bottom: 16,
-    right: 16,
-    width: 56,
-    height: 56,
+    bottom: 24,
+    right: 24,
+    width: 60,
+    height: 60,
     backgroundColor: '#f97316',
-    borderRadius: 28,
+    borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 8,
+    shadowColor: '#f97316',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5.46,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    width: '80%',
-    maxWidth: 300,
-  },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#1F2937', marginBottom: 16 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
+  emptyStockText: {
     fontSize: 16,
-    color: '#1F2937',
+    color: '#6B7280',
+    textAlign: 'center',
+    marginTop: 50,
   },
-  statusContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
-  statusLabel: { fontSize: 14, fontWeight: '500', color: '#1F2937', marginBottom: 8 }, // Ajouté ici
-  statusButton: {
-    padding: 8,
-    borderRadius: 12,
-    backgroundColor: '#f3f4f6',
-  },
-  statusSelected: { backgroundColor: '#a855f7' },
-  statusText: { fontSize: 14, color: '#1F2937', textAlign: 'center' },
-  addButton: {
-    backgroundColor: '#a855f7',
-    padding: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  addButtonText: { fontSize: 16, fontWeight: '600', color: '#fff' },
 });
 
 export default StockScreen;
-
-function alert(_arg0: string) {
-  throw new Error('Function not implemented.');
-}
