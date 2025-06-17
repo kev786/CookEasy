@@ -11,6 +11,8 @@ export type RootStackParamList = {
   AddShoppingItem: undefined;
   AIGenerate: undefined;
   AddStock: undefined;
+  EditStock: { item: { name: string; quantity: string; expiry: string; status: 'good' | 'warning' | 'urgent' }; itemIndex: number };
+  EditRecipe: { recipe: any }; 
 };
 
 export interface Recipe {
@@ -24,7 +26,7 @@ export interface Recipe {
   calories?: number;
   budget?: number;
   servings: number;
-  isPersonal?: boolean; 
+  isPersonal?: boolean;  
   creator?: string | null;
   description?: string;
   ingredients?: { name: string; quantity: number; unit: string; available: boolean }[];

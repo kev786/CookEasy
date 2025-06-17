@@ -1,326 +1,533 @@
 import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  TouchableOpacity, 
-  StyleSheet, 
-  ScrollView, 
-  TextInput, 
-  Platform 
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  Image,
+  ActivityIndicator, 
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import DateTimePicker from '@react-native-community/datetimepicker'; 
 import { RootStackParamList } from '../types';
-import { useAppContext } from '../context/AppContext';
+import { db } from '../services/firebase'; 
+import { doc, setDoc, collection } from '@react-native-firebase/firestore'; 
 
-// Définition des props pour cet écran
-type Props = NativeStackScreenProps<RootStackParamList, 'AddStock'>;
+type Props = NativeStackScreenProps<RootStackParamList, 'AddRecipe'>;
 
-const AddStockScreen: React.FC<Props> = ({ navigation }) => {
-  // Récupération de la fonction setStock depuis le contexte de l'application
-  const { setStock } = useAppContext();
+interface Ingredient {
+  name: string;
+  quantity: string;
+}
 
-  // État local pour le nouvel élément de stock à ajouter
-  const [newItem, setNewItem] = useState({ 
-    name: '', 
-    quantity: '', 
-    expiry: '', 
-    status: 'good' as 'good' | 'warning' | 'urgent' 
-  });
+const AddRecipeScreen: React.FC<Props> = ({ navigation, route }) => {
+  const [recipeName, setRecipeName] = useState(route.params?.recipe?.name || '');
+  const [time, setTime] = useState(route.params?.recipe?.time.replace(' min', '') || '');
+  const [difficulty, setDifficulty] = useState(route.params?.recipe?.difficulty || 'Facile');
+  const [ingredients, setIngredients] = useState<Ingredient[]>(
+    route.params?.recipe?.ingredients
+      ? route.params.recipe.ingredients.map((ing: string) => {
+          const [name, quantity] = ing.split(' (');
+          return { name: name, quantity: quantity.replace(')', '') };
+        })
+      : [{ name: '', quantity: '' }]
+  );
+  const [instructions, setInstructions] = useState(route.params?.recipe?.steps.map((s: any) => s.instruction).join('\n') || '');
+  const [showDifficultyDropdown, setShowDifficultyDropdown] = useState(false);
+  const [imageUri, setImageUri] = useState<string | null>(route.params?.recipe?.image || null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // État pour gérer l'affichage du sélecteur de date
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  // État pour la date sélectionnée dans le sélecteur, initialisée à aujourd'hui
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const difficultyOptions = ['Très facile', 'Facile', 'Moyen', 'Difficile'];
 
-  /**
-   * Gère le changement de date depuis le sélecteur de date.
-   * Met à jour la date d'expiration dans newItem et masque le sélecteur.
-   */
-  const onDateChange = (event: any, chosenDate?: Date) => {
-    // Masque le sélecteur de date après sélection (ou annulation)
-    setShowDatePicker(Platform.OS === 'ios'); 
-    if (chosenDate) {
-      setSelectedDate(chosenDate);
-      // Formatage de la date en 'YYYY-MM-DD'
-      const formattedDate = chosenDate.toISOString().split('T')[0];
-      setNewItem({ ...newItem, expiry: formattedDate });
+  const addIngredient = () => {
+    setIngredients([...ingredients, { name: '', quantity: '' }]);
+  };
+
+  const removeIngredient = (index: number) => {
+    if (ingredients.length === 1) {
+      Alert.alert('Erreur', 'Une recette doit avoir au moins un ingrédient.');
+      return;
     }
+    const newIngredients = ingredients.filter((_, idx) => idx !== index);
+    setIngredients(newIngredients);
   };
 
-  /**
-   * Affiche le sélecteur de date.
-   */
-  const handleShowDatePicker = () => {
-    setShowDatePicker(true);
+  const updateIngredient = (index: number, field: keyof Ingredient, value: string) => {
+    const newIngredients = [...ingredients];
+    newIngredients[index][field] = value;
+    setIngredients(newIngredients);
   };
 
-  /**
-   * Gère l'ajout d'un nouvel élément au stock.
-   * Valide les champs et ajoute l'élément via la fonction setStock du contexte.
-   * Retourne à l'écran précédent après l'ajout.
-   */
-  const handleAddStock = () => {
-    if (newItem.name && newItem.quantity && newItem.expiry) {
-      setStock((prevStock) => [
-        ...prevStock, 
-        { ...newItem, expiry: new Date(newItem.expiry).toISOString().split('T')[0] }
-      ]);
+  const openCamera = () => {
+    const options = { mediaType: 'photo' as const, includeBase64: false };
+    launchCamera(options, (response) => {
+      if (response.didCancel) {
+        Alert.alert('Annulé', 'Vous avez annulé la prise de photo.');
+      } else if (response.errorCode) {
+        Alert.alert('Erreur', `Erreur : ${response.errorMessage}`);
+      } else if (response.assets && response.assets[0].uri) {
+        setImageUri(response.assets[0].uri);
+      }
+    });
+  };
+
+  const openGallery = () => {
+    const options = { mediaType: 'mixed' as const, includeBase64: false };
+    launchImageLibrary(options, (response) => {
+      if (response.didCancel) {
+        Alert.alert('Annulé', 'Vous avez annulé la sélection.');
+      } else if (response.errorCode) {
+        Alert.alert('Erreur', `Erreur : ${response.errorMessage}`);
+      } else if (response.assets && response.assets[0].uri) {
+        setImageUri(response.assets[0].uri);
+      }
+    });
+  };
+
+  const calculateNutrition = () => {
+    let calories = 0;
+    let budget = 0;
+
+    ingredients.forEach((ing) => {
+      const name = ing.name.toLowerCase();
+      const qty = parseFloat(ing.quantity.replace(',', '.')) || 0;
+
+      const nutritionData = {
+        spaghettis: { caloriesPer100g: 131, pricePer100g: 0.5 },
+        lardons: { caloriesPer100g: 300, pricePer100g: 2.5 },
+        'œufs entiers': { caloriesPer100g: 155, pricePer100g: 0.3 },
+        'jaunes d\'œufs': { caloriesPer100g: 322, pricePer100g: 0.6 },
+        'parmesan râpé': { caloriesPer100g: 431, pricePer100g: 1.8 },
+        'poivre noir': { caloriesPer100g: 251, pricePer100g: 5.0 },
+        sel: { caloriesPer100g: 0, pricePer100g: 0.1 },
+      };
+
+      const data = nutritionData[name as keyof typeof nutritionData];
+      if (data) {
+        calories += (data.caloriesPer100g * qty) / 100;
+        budget += (data.pricePer100g * qty) / 100;
+      }
+    });
+
+    return { calories: Math.round(calories), budget: parseFloat(budget.toFixed(2)) };
+  };
+
+  const saveRecipe = async () => {
+    if (!recipeName.trim()) {
+      Alert.alert('Erreur', 'Le nom de la recette est requis.');
+      return;
+    }
+    if (!time.trim() || isNaN(parseInt(time, 10))) {
+      Alert.alert('Erreur', 'Veuillez entrer un temps de préparation valide (en minutes).');
+      return;
+    }
+    if (ingredients.some((ing) => !ing.name.trim() || !ing.quantity.trim())) {
+      Alert.alert('Erreur', 'Tous les ingrédients doivent avoir un nom et une quantité.');
+      return;
+    }
+
+    setIsLoading(true); 
+    console.log('1. saveRecipe: Début de la fonction, isLoading activé.'); 
+
+    const { calories, budget } = calculateNutrition();
+
+    try {
+      const recipeId = route.params?.recipe?.id || doc(collection(db, 'recipes')).id;
+      console.log('2. saveRecipe: Tente de sauvegarder la recette avec l\'ID :', recipeId); 
       
-      setNewItem({ name: '', quantity: '', expiry: '', status: 'good' });
-      navigation.goBack();
-    } else {
-      console.warn('Veuillez remplir tous les champs.'); 
+      // --- MODIFICATION CLÉ : Retrait de 'await' pour un comportement "fire-and-forget" ---
+      setDoc(doc(db, 'recipes', recipeId), {
+        id: recipeId,
+        name: recipeName,
+        time: `${time} min`,
+        difficulty,
+        image: imageUri || '🍳',
+        calories,
+        budget,
+        ingredients: ingredients.map((ing) => `${ing.name} (${ing.quantity})`),
+        isPersonal: true,
+        availableIngredients: 0,
+        creator: 'Kev',
+      }).then(() => {
+        // Ce bloc se déclenche quand Firebase confirme la sauvegarde
+        console.log('3. saveRecipe: setDoc terminé avec succès (promesse résolue).'); 
+        // Pas besoin de setIsLoading(false) ici car le finally s'en chargera
+      }).catch((error) => {
+        // Ce bloc se déclenche si Firebase rejette l'opération (ex: règles de sécurité)
+        console.error('ERREUR Firebase asynchrone lors de l\'enregistrement de la recette :', error); 
+        Alert.alert('Erreur Firebase', error.message || 'Échec de l\'ajout de la recette en arrière-plan. Vérifiez vos permissions.');
+      });
+      // --- FIN DE LA MODIFICATION CLÉ ---
+      
+      // Ces lignes s'exécuteront immédiatement après le lancement de setDoc, sans attendre sa résolution
+      navigation.goBack(); 
+      console.log('4. saveRecipe: Navigation vers l\'écran précédent initiée (goBack).'); 
+
+      Alert.alert(
+        '✅ Succès',
+        'Recette enregistrée avec succès !'
+      );
+      console.log('5. saveRecipe: Alerte de succès affichée.'); 
+
+    } catch (error: any) {
+      // Ce bloc catch ne capturera que les erreurs synchrone avant l'appel à setDoc
+      console.error('ERREUR SYNCHRONE lors de l\'enregistrement de la recette :', error); 
+      Alert.alert('Erreur', error.message || 'Échec de l\'ajout de la recette (erreur synchrone).');
+    } finally {
+      // Ce bloc est TOUJOURS exécuté après le try ou le catch synchrone
+      // Le setTimeout est une sécurité pour s'assurer que l'état isLoading est bien mis à jour.
+      setTimeout(() => {
+        setIsLoading(false); 
+        console.log('6. saveRecipe: Fonction terminée, isLoading désactivé (via setTimeout).'); 
+      }, 500); // Délai de 500 ms
     }
   };
 
   return (
-    <View style={styles.container}>
-      {/* En-tête de la page */}
-      <LinearGradient colors={['#f97316', '#ef4444']} style={styles.header}>
-        <View style={styles.headerContent}>
-          {/* Bouton de retour à l'écran précédent */}
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <MaterialCommunityIcons name="arrow-left" size={24} color="#fff" />
-          </TouchableOpacity>
-          {/* Titre de l'écran */}
-          <Text style={styles.headerTitle}>Ajouter un produit</Text>
-          {/* Espacement pour centrer le titre, ou icônes futures si nécessaire */}
-          <View style={styles.headerIconsPlaceholder} /> 
-        </View>
-      </LinearGradient>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView contentContainerStyle={styles.scrollContentContainer}>
+        <LinearGradient colors={['#f97316', '#ef4444']} style={styles.header}>
+          <View style={styles.headerContent}>
+            <TouchableOpacity onPress={() => navigation.goBack()}>
+              <MaterialCommunityIcons name="arrow-left" size={24} color="#fff" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Créer une Recette</Text>
+            <View style={styles.headerIcons}>
+              <MaterialCommunityIcons name="bell" size={24} color="#fff" style={styles.icon} />
+              <View style={styles.profileIcon}>
+                <MaterialCommunityIcons name="account" size={20} color="#fff" />
+              </View>
+            </View>
+          </View>
+        </LinearGradient>
 
-      {/* Zone de défilement pour le contenu du formulaire */}
-      <ScrollView contentContainerStyle={styles.formContent}>
-        {/* Champ de saisie pour le nom du produit */}
-        <View style={styles.labelContainer}>
-          <MaterialCommunityIcons name="package-variant-closed" size={20} color="#374151" style={styles.labelIcon} />
-          <Text style={styles.inputLabel}>Nom du produit</Text>
-        </View>
-        <TextInput
-          style={styles.input}
-          placeholder="Ex: Lait, Sucre, Riz"
-          value={newItem.name}
-          onChangeText={(text) => setNewItem({ ...newItem, name: text })}
-        />
-        
-        {/* Champ de saisie pour la quantité */}
-        <View style={styles.labelContainer}>
-          <MaterialCommunityIcons name="weight-kilogram" size={20} color="#374151" style={styles.labelIcon} />
-          <Text style={styles.inputLabel}>Quantité</Text>
-        </View>
-        <TextInput
-          style={styles.input}
-          placeholder="Ex: 500g, 2 kg, 1 douzaine"
-          value={newItem.quantity}
-          onChangeText={(text) => setNewItem({ ...newItem, quantity: text })}
-        />
-        
-        {/* Champ de sélection de la date d'expiration */}
-        <View style={styles.labelContainer}>
-          <MaterialCommunityIcons name="calendar" size={20} color="#374151" style={styles.labelIcon} />
-          <Text style={styles.inputLabel}>Date d'expiration</Text>
-        </View>
-        <TouchableOpacity style={styles.input} onPress={handleShowDatePicker}>
-          <Text style={newItem.expiry ? styles.dateText : styles.datePlaceholder}>
-            {newItem.expiry || "Sélectionnez une date (AAAA-MM-JJ)"}
-          </Text>
-        </TouchableOpacity>
-        
-        {/* Sélecteur de date conditionnel */}
-        {showDatePicker && (
-          <DateTimePicker
-            testID="dateTimePicker"
-            value={selectedDate}
-            mode="date" 
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'} 
-            onChange={onDateChange}
-            minimumDate={new Date()} 
-          />
-        )}
-        
-        {/* Section de sélection du statut */}
-        <View style={styles.labelContainer}>
-            <MaterialCommunityIcons name="information" size={20} color="#374151" style={styles.labelIcon} />
-            <Text style={styles.statusLabel}>Statut :</Text>
-        </View>
-        <View style={styles.statusContainer}>
-          {/* Bouton pour le statut "Bon état" */}
-          <TouchableOpacity
-            style={[
-              styles.statusButton, 
-              newItem.status === 'good' && styles.statusSelectedGood
-            ]}
-            onPress={() => setNewItem({ ...newItem, status: 'good' })}
-          >
-            <Text style={[
-              styles.statusText, 
-              newItem.status === 'good' && styles.statusTextSelected
-            ]}>Bon état</Text>
-          </TouchableOpacity>
-          
-          {/* Bouton pour le statut "Attention" */}
-          <TouchableOpacity
-            style={[
-              styles.statusButton, 
-              newItem.status === 'warning' && styles.statusSelectedWarning
-            ]}
-            onPress={() => setNewItem({ ...newItem, status: 'warning' })}
-          >
-            <Text style={[
-              styles.statusText, 
-              newItem.status === 'warning' && styles.statusTextSelected
-            ]}>Attention</Text>
-          </TouchableOpacity>
-          
-          {/* Bouton pour le statut "Urgent" */}
-          <TouchableOpacity
-            style={[
-              styles.statusButton, 
-              newItem.status === 'urgent' && styles.statusSelectedUrgent
-            ]}
-            onPress={() => setNewItem({ ...newItem, status: 'urgent' })}
-          >
-            <Text style={[
-              styles.statusText, 
-              newItem.status === 'urgent' && styles.statusTextSelected
-            ]}>Urgent</Text>
-          </TouchableOpacity>
-        </View>
+        <View style={styles.content}>
+          <View style={styles.photoContainer}>
+            {imageUri ? (
+              <Image source={{ uri: imageUri }} style={styles.imagePreview} />
+            ) : (
+              <MaterialCommunityIcons name="camera" size={48} color="#9CA3AF" />
+            )}
+            <Text style={styles.photoText}>{imageUri ? 'Photo sélectionnée' : 'Ajouter une photo'}</Text>
+            <View style={styles.photoButtonContainer}>
+              <TouchableOpacity style={styles.photoButton} onPress={openCamera}>
+                <Text style={styles.photoButtonText}>Prendre une photo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.photoButton} onPress={openGallery}>
+                <Text style={styles.photoButtonText}>Choisir dans la galerie</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
 
-        {/* Bouton d'ajout du produit */}
-        <TouchableOpacity style={styles.addButton} onPress={handleAddStock}>
-          <Text style={styles.addButtonText}>Ajouter le produit</Text>
-        </TouchableOpacity>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Informations de base</Text>
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Nom de la recette</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ex: Gratin de Grand-mère"
+                placeholderTextColor="#9CA3AF"
+                value={recipeName}
+                onChangeText={setRecipeName}
+              />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.inputContainer, styles.halfWidth]}>
+                <Text style={styles.label}>Temps (min)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="30"
+                  placeholderTextColor="#9CA3AF"
+                  value={time}
+                  onChangeText={setTime}
+                  keyboardType="numeric"
+                />
+              </View>
+              <View style={[styles.inputContainer, styles.halfWidth]}>
+                <Text style={styles.label}>Difficulté</Text>
+                <View style={styles.dropdownContainer}>
+                  <TouchableOpacity
+                    style={styles.dropdownButton}
+                    onPress={() => setShowDifficultyDropdown(!showDifficultyDropdown)}
+                  >
+                    <Text style={styles.dropdownText}>{difficulty}</Text>
+                    <MaterialCommunityIcons
+                      name={showDifficultyDropdown ? 'chevron-up' : 'chevron-down'}
+                      size={20}
+                      color="#9CA3AF"
+                    />
+                  </TouchableOpacity>
+                  {showDifficultyDropdown && (
+                    <View style={styles.dropdownList}>
+                      {difficultyOptions.map((option, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          style={[
+                            styles.dropdownItem,
+                            option === difficulty && styles.selectedItem,
+                          ]}
+                          onPress={() => {
+                            setDifficulty(option);
+                            setShowDifficultyDropdown(false);
+                          }}
+                        >
+                          <Text style={[
+                            styles.dropdownItemText,
+                            option === difficulty && styles.selectedItemText,
+                          ]}>
+                            {option}
+                          </Text>
+                          {option === difficulty && (
+                            <MaterialCommunityIcons name="check" size={16} color="#f97316" />
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Ingrédients</Text>
+              <TouchableOpacity onPress={addIngredient}>
+                <Text style={styles.addText}>
+                  <MaterialCommunityIcons name="plus" size={16} color="#f97316" /> Ajouter
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {ingredients.map((item, index) => (
+              <View key={index} style={styles.ingredientRow}>
+                <TextInput
+                  style={[styles.input, styles.ingredientInput]}
+                  placeholder="Nom de l'ingrédient"
+                  placeholderTextColor="#9CA3AF"
+                  value={item.name}
+                  onChangeText={(value) => updateIngredient(index, 'name', value)}
+                />
+                <TextInput
+                  style={[styles.input, styles.quantityInput]}
+                  placeholder="Quantité"
+                  placeholderTextColor="#9CA3AF"
+                  value={item.quantity}
+                  onChangeText={(value) => updateIngredient(index, 'quantity', value)}
+                />
+                <TouchableOpacity onPress={() => removeIngredient(index)}>
+                  <MaterialCommunityIcons name="trash-can-outline" size={20} color="#ef4444" />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Instructions</Text>
+            <TextInput
+              style={[styles.input, styles.instructionsInput]}
+              placeholder="Décrivez les étapes de préparation..."
+              placeholderTextColor="#9CA3AF"
+              value={instructions}
+              onChangeText={setInstructions}
+              multiline
+              numberOfLines={6}
+            />
+          </View>
+
+          <View style={styles.actionButtonContainer}>
+            <TouchableOpacity 
+              onPress={saveRecipe} 
+              style={styles.publishButtonWrapper}
+              disabled={isLoading} 
+            >
+              <LinearGradient colors={isLoading ? ['#ccc', '#aaa'] : ['#f97316', '#ef4444']} style={styles.publishButton}>
+                {isLoading ? (
+                  <ActivityIndicator color="#fff" /> 
+                ) : (
+                  <>
+                    <MaterialCommunityIcons name="check-circle" size={20} color="#fff" style={styles.buttonIcon} />
+                    <Text style={styles.publishButtonText}>Publier la Recette</Text>
+                  </>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: '#F3F4F6' 
-  },
-  header: { 
-    paddingTop: 48, 
-    paddingBottom: 16, 
-    paddingHorizontal: 16 
-  },
-  headerContent: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between' 
-  },
-  headerTitle: { 
-    fontSize: 20, 
-    fontWeight: 'bold', 
-    color: '#fff' 
-  },
-  headerIconsPlaceholder: { 
-    width: 24, 
-    marginHorizontal: 8,
-  },
-  formContent: { 
-    padding: 16, 
-    flexGrow: 1, 
-    justifyContent: 'center', 
-  },
-  labelContainer: { // Nouveau style pour le conteneur icône + label
-    flexDirection: 'row',
+  container: { flex: 1, backgroundColor: '#F3F4F6' },
+  scrollContentContainer: { paddingBottom: 32 },
+  header: { paddingTop: 48, paddingBottom: 16, paddingHorizontal: 16 },
+  headerContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#fff' },
+  headerIcons: { flexDirection: 'row', alignItems: 'center' },
+  icon: { marginHorizontal: 8 },
+  profileIcon: {
+    width: 32,
+    height: 32,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 16,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
-    marginTop: 12,
   },
-  labelIcon: { // Nouveau style pour l'icône du label
-    marginRight: 8,
+  content: { padding: 16 },
+  photoContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    marginBottom: 24,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderStyle: 'dashed',
   },
-  inputLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151', 
+  imagePreview: {
+    width: 150,
+    height: 150,
+    borderRadius: 8,
+    marginBottom: 12,
   },
+  photoText: { fontSize: 14, color: '#6B7280', marginTop: 8, marginBottom: 12 },
+  photoButtonContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  photoButton: {
+    backgroundColor: '#f97316',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  photoButtonText: { fontSize: 14, color: '#fff', fontWeight: '500', textAlign: 'center' },
+  section: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 24 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  sectionTitle: { fontSize: 18, fontWeight: '600', color: '#1F2937', marginBottom: 16 },
+  addText: { fontSize: 14, color: '#f97316', fontWeight: '500' },
+  inputContainer: { marginBottom: 16 },
+  halfWidth: { flex: 1 },
+  label: { fontSize: 14, fontWeight: '500', color: '#374151', marginBottom: 8 },
   input: {
     borderWidth: 1,
-    borderColor: '#D1D5DB', 
+    borderColor: '#E5E7EB',
     borderRadius: 12,
-    padding: 14,
+    padding: 12,
+    fontSize: 16,
+    color: '#1F2937',
+  },
+  row: { flexDirection: 'row', gap: 16 },
+  dropdownContainer: {
+    position: 'relative',
+    zIndex: 1000,
+  },
+  dropdownButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 12,
+    backgroundColor: '#fff',
+  },
+  dropdownText: {
+    fontSize: 16,
+    color: '#1F2937',
+  },
+  dropdownList: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    marginTop: 4,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
+    zIndex: 1001,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  selectedItem: {
+    backgroundColor: '#FEF3E2',
+  },
+  dropdownItemText: {
+    fontSize: 16,
+    color: '#1F2937',
+  },
+  selectedItemText: {
+    color: '#f97316',
+    fontWeight: '500',
+  },
+  ingredientRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    padding: 12,
     marginBottom: 12,
-    fontSize: 16,
-    color: '#1F2937',
-    backgroundColor: '#fff', 
-    justifyContent: 'center', 
   },
-  dateText: {
-    fontSize: 16,
-    color: '#1F2937',
-  },
-  datePlaceholder: {
-    fontSize: 16,
-    color: '#6B7280', 
-  },
-  statusContainer: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-around', 
+  ingredientInput: { flex: 2 },
+  quantityInput: { flex: 1, textAlign: 'right' },
+  instructionsInput: { textAlignVertical: 'top' },
+  actionButtonContainer: {
+    alignItems: 'center',
     marginTop: 8,
-    marginBottom: 24,
-    backgroundColor: '#E5E7EB', 
-    borderRadius: 12,
-    padding: 6,
+    marginBottom: 80,
   },
-  statusLabel: { 
-    fontSize: 16, 
-    fontWeight: '600', 
-    color: '#374151', 
-    // marginBottom: 10, // Retiré car le labelContainer gère déjà l'espacement
+  publishButtonWrapper: {
+    width: '75%',
+    maxWidth: 300,
   },
-  statusButton: {
-    flex: 1, 
-    paddingVertical: 10,
-    borderRadius: 10,
+  publishButton: {
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginHorizontal: 4, 
-    backgroundColor: 'transparent', 
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    shadowColor: '#f97316',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  statusSelectedGood: { 
-    backgroundColor: '#d1fae5', 
-    borderWidth: 1, 
-    borderColor: '#16a34a' 
+  buttonIcon: {
+    marginRight: 8,
   },
-  statusSelectedWarning: { 
-    backgroundColor: '#fefce8', 
-    borderWidth: 1, 
-    borderColor: '#ca8a04' 
-  },
-  statusSelectedUrgent: { 
-    backgroundColor: '#fef2f2', 
-    borderWidth: 1, 
-    borderColor: '#b91c1c' 
-  },
-  statusText: { 
-    fontSize: 14, 
-    fontWeight: '500', 
-    color: '#4B5563', 
-  },
-  statusTextSelected: {
-    fontWeight: 'bold', 
-    color: '#1F2937', 
-  },
-  addButton: {
-    backgroundColor: '#a855f7', 
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 20, 
-    elevation: 3, 
-  },
-  addButtonText: { 
-    fontSize: 18, 
-    fontWeight: '700', 
-    color: '#fff' 
+  publishButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+    textAlign: 'center',
   },
 });
 
-export default AddStockScreen;
+export default AddRecipeScreen;

@@ -18,29 +18,42 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
 import { db } from '../services/firebase'; 
 import { doc, setDoc, collection } from '@react-native-firebase/firestore'; 
+import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'AddRecipe'>;
+// Le type des props pour cet écran, spécifiant qu'il attend un objet 'recipe'
+type Props = NativeStackScreenProps<RootStackParamList, 'EditRecipe'>;
 
 interface Ingredient {
   name: string;
   quantity: string;
 }
 
-const AddRecipeScreen: React.FC<Props> = ({ navigation, route }) => {
-  const [recipeName, setRecipeName] = useState(route.params?.recipe?.name || '');
-  const [time, setTime] = useState(route.params?.recipe?.time.replace(' min', '') || '');
-  const [difficulty, setDifficulty] = useState(route.params?.recipe?.difficulty || 'Facile');
+const EditRecipeScreen: React.FC<Props> = ({ navigation, route }) => {
+  // L'objet 'recipe' est obligatoire et passé via route.params
+  const initialRecipe = route.params.recipe; 
+
+  const [recipeName, setRecipeName] = useState(initialRecipe.name || '');
+  
+  // Correction ici : Vérifiez si 'time' existe avant d'appeler .replace()
+  const [time, setTime] = useState(initialRecipe.time?.replace(' min', '') || ''); 
+  
+  const [difficulty, setDifficulty] = useState(initialRecipe.difficulty || 'Facile');
+  
+  // Correction ici : Utilisez le chaînage optionnel et fournissez une valeur par défaut sûre
   const [ingredients, setIngredients] = useState<Ingredient[]>(
-    route.params?.recipe?.ingredients
-      ? route.params.recipe.ingredients.map((ing: string) => {
-          const [name, quantity] = ing.split(' (');
-          return { name: name, quantity: quantity.replace(')', '') };
-        })
-      : [{ name: '', quantity: '' }]
+    initialRecipe.ingredients?.map((ing: string) => { 
+      const [name, quantity] = ing.split(' (');
+      return { name: name, quantity: quantity.replace(')', '') };
+    }) || [{ name: '', quantity: '' }] 
   );
-  const [instructions, setInstructions] = useState(route.params?.recipe?.steps.map((s: any) => s.instruction).join('\n') || '');
+  
+  // Correction ici : Utilisez le chaînage optionnel et fournissez une valeur par défaut sûre
+  const [instructions, setInstructions] = useState(
+    initialRecipe.steps?.map((s: any) => s.instruction).join('\n') || '' 
+  );
+  
   const [showDifficultyDropdown, setShowDifficultyDropdown] = useState(false);
-  const [imageUri, setImageUri] = useState<string | null>(route.params?.recipe?.image || null);
+  const [imageUri, setImageUri] = useState<string | null>(initialRecipe.image || null);
   const [isLoading, setIsLoading] = useState(false);
 
   const difficultyOptions = ['Très facile', 'Facile', 'Moyen', 'Difficile'];
@@ -138,12 +151,11 @@ const AddRecipeScreen: React.FC<Props> = ({ navigation, route }) => {
     const { calories, budget } = calculateNutrition();
 
     try {
-      const recipeId = route.params?.recipe?.id || doc(collection(db, 'recipes')).id;
-      console.log('2. saveRecipe: Tente de sauvegarder la recette avec l\'ID :', recipeId); 
+      const recipeId = initialRecipe.id; 
+      console.log('2. saveRecipe: Tente de mettre à jour la recette avec l\'ID :', recipeId); 
       
-      // --- MODIFICATION CLÉ : Retrait de 'await' pour un comportement "fire-and-forget" ---
       setDoc(doc(db, 'recipes', recipeId), {
-        id: recipeId,
+        id: recipeId, 
         name: recipeName,
         time: `${time} min`,
         difficulty,
@@ -151,41 +163,33 @@ const AddRecipeScreen: React.FC<Props> = ({ navigation, route }) => {
         calories,
         budget,
         ingredients: ingredients.map((ing) => `${ing.name} (${ing.quantity})`),
-        isPersonal: true,
-        availableIngredients: 0,
-        creator: 'Kev',
-      }).then(() => {
-        // Ce bloc se déclenche quand Firebase confirme la sauvegarde
+        isPersonal: initialRecipe.isPersonal, 
+        creator: initialRecipe.creator || 'Kev', 
+        availableIngredients: 0, 
+      }, { merge: true }).then(() => { 
         console.log('3. saveRecipe: setDoc terminé avec succès (promesse résolue).'); 
-        // Pas besoin de setIsLoading(false) ici car le finally s'en chargera
       }).catch((error) => {
-        // Ce bloc se déclenche si Firebase rejette l'opération (ex: règles de sécurité)
         console.error('ERREUR Firebase asynchrone lors de l\'enregistrement de la recette :', error); 
-        Alert.alert('Erreur Firebase', error.message || 'Échec de l\'ajout de la recette en arrière-plan. Vérifiez vos permissions.');
+        Alert.alert('Erreur Firebase', error.message || 'Échec de la modification de la recette en arrière-plan. Vérifiez vos permissions.');
       });
-      // --- FIN DE LA MODIFICATION CLÉ ---
       
-      // Ces lignes s'exécuteront immédiatement après le lancement de setDoc, sans attendre sa résolution
       navigation.goBack(); 
       console.log('4. saveRecipe: Navigation vers l\'écran précédent initiée (goBack).'); 
 
       Alert.alert(
         '✅ Succès',
-        'Recette enregistrée avec succès !'
+        'Recette modifiée avec succès !'
       );
       console.log('5. saveRecipe: Alerte de succès affichée.'); 
 
     } catch (error: any) {
-      // Ce bloc catch ne capturera que les erreurs synchrone avant l'appel à setDoc
       console.error('ERREUR SYNCHRONE lors de l\'enregistrement de la recette :', error); 
-      Alert.alert('Erreur', error.message || 'Échec de l\'ajout de la recette (erreur synchrone).');
+      Alert.alert('Erreur', error.message || 'Échec de la modification de la recette (erreur synchrone).');
     } finally {
-      // Ce bloc est TOUJOURS exécuté après le try ou le catch synchrone
-      // Le setTimeout est une sécurité pour s'assurer que l'état isLoading est bien mis à jour.
       setTimeout(() => {
         setIsLoading(false); 
         console.log('6. saveRecipe: Fonction terminée, isLoading désactivé (via setTimeout).'); 
-      }, 500); // Délai de 500 ms
+      }, 500); 
     }
   };
 
@@ -195,13 +199,22 @@ const AddRecipeScreen: React.FC<Props> = ({ navigation, route }) => {
         <LinearGradient colors={['#f97316', '#ef4444']} style={styles.header}>
           <View style={styles.headerContent}>
             <TouchableOpacity onPress={() => navigation.goBack()}>
-              <MaterialCommunityIcons name="arrow-left" size={24} color="#fff" />
+              {/* Correction 1: Envelopper MaterialCommunityIcons dans Text si nécessaire */}
+              <Text> 
+                <MaterialCommunityIcons name="arrow-left" size={24} color="#fff" />
+              </Text>
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Créer une Recette</Text>
+            <Text style={styles.headerTitle}>Modifier la Recette</Text> 
             <View style={styles.headerIcons}>
-              <MaterialCommunityIcons name="bell" size={24} color="#fff" style={styles.icon} />
+              {/* Correction 2: Envelopper MaterialCommunityIcons dans Text */}
+              <Text style={styles.icon}>
+                <MaterialCommunityIcons name="bell" size={24} color="#fff" />
+              </Text>
               <View style={styles.profileIcon}>
-                <MaterialCommunityIcons name="account" size={20} color="#fff" />
+                {/* Correction 3: Envelopper MaterialCommunityIcons dans Text */}
+                <Text>
+                  <MaterialCommunityIcons name="account" size={20} color="#fff" />
+                </Text>
               </View>
             </View>
           </View>
@@ -212,7 +225,10 @@ const AddRecipeScreen: React.FC<Props> = ({ navigation, route }) => {
             {imageUri ? (
               <Image source={{ uri: imageUri }} style={styles.imagePreview} />
             ) : (
-              <MaterialCommunityIcons name="camera" size={48} color="#9CA3AF" />
+              // Correction 4: Envelopper MaterialCommunityIcons dans Text
+              <Text>
+                <MaterialCommunityIcons name="camera" size={48} color="#9CA3AF" />
+              </Text>
             )}
             <Text style={styles.photoText}>{imageUri ? 'Photo sélectionnée' : 'Ajouter une photo'}</Text>
             <View style={styles.photoButtonContainer}>
@@ -257,11 +273,14 @@ const AddRecipeScreen: React.FC<Props> = ({ navigation, route }) => {
                     onPress={() => setShowDifficultyDropdown(!showDifficultyDropdown)}
                   >
                     <Text style={styles.dropdownText}>{difficulty}</Text>
-                    <MaterialCommunityIcons
-                      name={showDifficultyDropdown ? 'chevron-up' : 'chevron-down'}
-                      size={20}
-                      color="#9CA3AF"
-                    />
+                    {/* Correction 5: Envelopper MaterialCommunityIcons dans Text */}
+                    <Text>
+                      <MaterialCommunityIcons
+                        name={showDifficultyDropdown ? 'chevron-up' : 'chevron-down'}
+                        size={20}
+                        color="#9CA3AF"
+                      />
+                    </Text>
                   </TouchableOpacity>
                   {showDifficultyDropdown && (
                     <View style={styles.dropdownList}>
@@ -284,7 +303,10 @@ const AddRecipeScreen: React.FC<Props> = ({ navigation, route }) => {
                             {option}
                           </Text>
                           {option === difficulty && (
-                            <MaterialCommunityIcons name="check" size={16} color="#f97316" />
+                            // Correction 6: Envelopper MaterialCommunityIcons dans Text
+                            <Text>
+                              <MaterialCommunityIcons name="check" size={16} color="#f97316" />
+                            </Text>
                           )}
                         </TouchableOpacity>
                       ))}
@@ -300,6 +322,7 @@ const AddRecipeScreen: React.FC<Props> = ({ navigation, route }) => {
               <Text style={styles.sectionTitle}>Ingrédients</Text>
               <TouchableOpacity onPress={addIngredient}>
                 <Text style={styles.addText}>
+                  {/* Correction 7: Envelopper MaterialCommunityIcons dans Text */}
                   <MaterialCommunityIcons name="plus" size={16} color="#f97316" /> Ajouter
                 </Text>
               </TouchableOpacity>
@@ -321,7 +344,10 @@ const AddRecipeScreen: React.FC<Props> = ({ navigation, route }) => {
                   onChangeText={(value) => updateIngredient(index, 'quantity', value)}
                 />
                 <TouchableOpacity onPress={() => removeIngredient(index)}>
-                  <MaterialCommunityIcons name="trash-can-outline" size={20} color="#ef4444" />
+                  {/* Correction 8: Envelopper MaterialCommunityIcons dans Text */}
+                  <Text>
+                    <MaterialCommunityIcons name="trash-can-outline" size={20} color="#ef4444" />
+                  </Text>
                 </TouchableOpacity>
               </View>
             ))}
@@ -351,8 +377,11 @@ const AddRecipeScreen: React.FC<Props> = ({ navigation, route }) => {
                   <ActivityIndicator color="#fff" /> 
                 ) : (
                   <>
-                    <MaterialCommunityIcons name="check-circle" size={20} color="#fff" style={styles.buttonIcon} />
-                    <Text style={styles.publishButtonText}>Publier la Recette</Text>
+                    {/* Correction 9: Envelopper MaterialCommunityIcons dans Text */}
+                    <Text style={styles.buttonIcon}>
+                      <MaterialCommunityIcons name="check-circle" size={20} color="#fff" />
+                    </Text>
+                    <Text style={styles.publishButtonText}>Enregistrer les Modifications</Text> 
                   </>
                 )}
               </LinearGradient>
@@ -530,4 +559,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default AddRecipeScreen;
+export default EditRecipeScreen;

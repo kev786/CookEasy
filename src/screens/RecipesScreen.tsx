@@ -5,7 +5,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
 import { db } from '../services/firebase';
-import { collection, onSnapshot } from '@react-native-firebase/firestore';
+import { collection, onSnapshot, doc, deleteDoc } from '@react-native-firebase/firestore'; 
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Recipes'>;
 
@@ -35,10 +35,10 @@ const RecipesScreen: React.FC<Props> = ({ navigation }) => {
         recipesList.push({ id: doc.id, ...doc.data() } as Recipe);
       });
       setRecipes(recipesList);
-      setFilteredRecipes(recipesList); // Initialement, afficher toutes les recettes
+      setFilteredRecipes(recipesList); 
     });
 
-    return () => unsubscribe(); // Nettoyage
+    return () => unsubscribe(); 
   }, []);
 
   useEffect(() => {
@@ -58,6 +58,43 @@ const RecipesScreen: React.FC<Props> = ({ navigation }) => {
 
   const handleRecipePress = (recipe: Recipe) => {
     navigation.navigate('RecipeDetail', { recipe });
+  };
+
+  /**
+   * Gère la modification d'une recette.
+   * Navigue vers EditRecipeScreen en lui passant l'objet recette.
+   * @param recipe L'objet recette à modifier.
+   */
+  const handleEditRecipe = (recipe: Recipe) => {
+    // MODIFICATION ICI : Navigue vers le nouvel écran EditRecipe
+    navigation.navigate('EditRecipe', { recipe });
+  };
+
+  const handleDeleteRecipe = (recipeId: string, recipeName: string) => {
+    Alert.alert(
+      'Confirmer la suppression',
+      `Êtes-vous sûr de vouloir supprimer la recette "${recipeName}" ?`,
+      [
+        {
+          text: 'Annuler',
+          style: 'cancel',
+        },
+        {
+          text: 'Supprimer',
+          onPress: async () => {
+            try {
+              await deleteDoc(doc(db, 'recipes', recipeId));
+              Alert.alert('Succès', 'Recette supprimée avec succès !');
+            } catch (error) {
+              console.error('Erreur lors de la suppression de la recette :', error);
+              Alert.alert('Erreur', 'Échec de la suppression de la recette.');
+            }
+          },
+          style: 'destructive',
+        },
+      ],
+      { cancelable: true }
+    );
   };
 
   return (
@@ -170,6 +207,21 @@ const RecipesScreen: React.FC<Props> = ({ navigation }) => {
                   </View>
                 </TouchableOpacity>
                 <View style={styles.recipeActions}>
+                  {/* Bouton Modifier */}
+                  <TouchableOpacity
+                    style={styles.actionButtonCircle}
+                    onPress={() => handleEditRecipe(item)}
+                  >
+                    <MaterialCommunityIcons name="pencil" size={20} color="#3b82f6" />
+                  </TouchableOpacity>
+                  {/* Bouton Supprimer */}
+                  <TouchableOpacity
+                    style={styles.actionButtonCircle}
+                    onPress={() => handleDeleteRecipe(item.id, item.name)}
+                  >
+                    <MaterialCommunityIcons name="trash-can-outline" size={20} color="#ef4444" />
+                  </TouchableOpacity>
+                  {/* Bouton Ajouter à la liste de courses */}
                   <TouchableOpacity
                     style={styles.shoppingCartIcon}
                     onPress={() => addToShoppingList(item.id)}
@@ -235,6 +287,10 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
     elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.20,
+    shadowRadius: 1.41,
   },
   personalRecipeCard: { position: 'relative' },
   personalBadge: {
@@ -245,6 +301,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 12,
+    zIndex: 1, 
   },
   personalBadgeText: { fontSize: 12, fontWeight: '500', color: '#f97316' },
   recipeContainer: {
@@ -276,12 +333,38 @@ const styles = StyleSheet.create({
   },
   ingredientText: { fontSize: 12, color: '#6B7280' },
   recipeActions: {
+    flexDirection: 'row', 
     justifyContent: 'flex-end',
     alignItems: 'flex-end',
     paddingTop: 8,
+    gap: 8, 
+  },
+  actionButtonCircle: { 
+    backgroundColor: '#E5E7EB',
+    borderRadius: 20, 
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.18,
+    shadowRadius: 1.00,
   },
   shoppingCartIcon: {
-    padding: 15,
+    padding: 10, 
+    borderRadius: 20, 
+    backgroundColor: '#E5E7EB', 
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.18,
+    shadowRadius: 1.00,
   },
   emptyText: { fontSize: 16, color: '#6B7280', textAlign: 'center', marginTop: 20 },
 });
