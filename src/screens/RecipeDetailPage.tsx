@@ -4,27 +4,80 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions, Image
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../types';
+import { RootStackParamList } from '../types'; // Assurez-vous que RootStackParamList est bien défini ici
 
 const { width } = Dimensions.get('window');
+
+// Interfaces pour la structure de données attendue
+interface Ingredient {
+  name: string;
+  quantity: number; // Maintenant un nombre
+  unit: string;    // Unité séparée
+  available: boolean;
+}
+
+interface Step {
+  title: string;
+  instruction: string;
+  time?: string;
+  image?: string;
+}
+
+interface NutritionInfo {
+  calories: number;
+  proteins: number;
+  carbs: number;
+  fats: number;
+}
+
+interface Recipe {
+  id: string;
+  name: string;
+  time: string; // Ex: "30 min"
+  difficulty: string;
+  image?: string;
+  servings: number; // Maintenant un nombre
+  ingredients: Ingredient[]; // Tableau d'objets Ingredient
+  steps: Step[];         // Tableau d'objets Step
+  nutrition: NutritionInfo; // Objet NutritionInfo
+  budget: number;
+  isPersonal: boolean;
+  availableIngredients: number;
+  creator: string;
+  rating?: number;
+  reviews?: number;
+  description?: string; // Peut être vide
+  tips?: string[]; // Peut être vide
+}
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RecipeDetail'>;
 
 const RecipeDetailPage: React.FC<Props> = ({ route, navigation }) => {
-  const [currentStep, setCurrentStep] = useState(0);
-  const [portions, setPortions] = useState(4);
+  const [currentTab, setCurrentTab] = useState(0); // Renommé currentStep en currentTab pour plus de clarté
+  const [portions, setPortions] = useState(0); // Initialisé à 0 pour être mis à jour par recipe.servings
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
 
   // Récupérer la recette depuis les paramètres de navigation
-  const recipe = route.params?.recipe;
+  const recipe = route.params?.recipe as Recipe; // Caster en Recipe
+
+  // Mettre à jour les portions par défaut une fois la recette chargée
+  React.useEffect(() => {
+    if (recipe && recipe.servings) {
+      setPortions(recipe.servings);
+    }
+  }, [recipe]);
 
   // Vérifier si la recette est disponible
   if (!recipe) {
     return (
       <View style={styles.container}>
         <Text style={styles.errorText}>Aucune recette disponible.</Text>
+        <TouchableOpacity style={styles.backButtonEmpty} onPress={() => navigation.goBack()}>
+          <MaterialCommunityIcons name="arrow-left" size={20} color="#374151" />
+          <Text style={styles.backButtonEmptyText}>Retour</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -43,7 +96,9 @@ const RecipeDetailPage: React.FC<Props> = ({ route, navigation }) => {
   };
 
   const calculateAdjustedQuantity = (originalQuantity: number) => {
-    return (originalQuantity * portions / recipe.servings).toFixed(1);
+    // S'assurer que originalQuantity est un nombre
+    const qtyNum = typeof originalQuantity === 'number' ? originalQuantity : parseFloat(String(originalQuantity).replace(',', '.')) || 0;
+    return (qtyNum * portions / recipe.servings).toFixed(1);
   };
 
   const toggleTimer = () => {
@@ -58,10 +113,10 @@ const RecipeDetailPage: React.FC<Props> = ({ route, navigation }) => {
         <LinearGradient
           colors={['#f97316', '#ef4444']}
           style={styles.headerGradient}
-          start={{x: 0, y: 0}}
-          end={{x: 1, y: 1}}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
         >
-          {recipe.image ? (
+          {recipe.image && recipe.image.startsWith('http') ? ( // Vérifier si l'URI est valide
             <Image
               source={{ uri: recipe.image }}
               style={styles.headerImage}
@@ -134,7 +189,7 @@ const RecipeDetailPage: React.FC<Props> = ({ route, navigation }) => {
               </View>
               <View style={styles.budgetContainer}>
                 <Text style={styles.budgetText}>{recipe.budget || 0}FCFA</Text>
-                <Text style={styles.caloriesText}>{recipe.calories || 0} cal</Text>
+                <Text style={styles.caloriesText}>{recipe.nutrition?.calories || 0} cal</Text>
               </View>
             </View>
           </View>
@@ -147,17 +202,17 @@ const RecipeDetailPage: React.FC<Props> = ({ route, navigation }) => {
           <TouchableOpacity
             key={tab}
             style={[styles.tabButton]}
-            onPress={() => setCurrentStep(idx)}
+            onPress={() => setCurrentTab(idx)}
           >
             <Text
               style={[
                 styles.tabText,
-                currentStep === idx && styles.activeTabText,
+                currentTab === idx && styles.activeTabText,
               ]}
             >
               {tab}
             </Text>
-            {currentStep === idx && <View style={styles.activeTabIndicator} />}
+            {currentTab === idx && <View style={styles.activeTabIndicator} />}
           </TouchableOpacity>
         ))}
       </View>
@@ -165,7 +220,7 @@ const RecipeDetailPage: React.FC<Props> = ({ route, navigation }) => {
       {/* Contenu des onglets */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.contentPadding}>
-          {currentStep === 0 && (
+          {currentTab === 0 && (
             <View style={styles.tabContent}>
               {/* Ajusteur de portions */}
               <View style={styles.portionSection}>
@@ -200,33 +255,37 @@ const RecipeDetailPage: React.FC<Props> = ({ route, navigation }) => {
                 </View>
 
                 <View style={styles.ingredientsList}>
-                  {recipe.ingredients.map((ingredient: any, idx: number) => (
-                    <View
-                      key={idx}
-                      style={[
-                        styles.ingredientItem,
-                        ingredient.available ? styles.availableIngredient : styles.unavailableIngredient,
-                      ]}
-                    >
+                  {recipe.ingredients && recipe.ingredients.length > 0 ? (
+                    recipe.ingredients.map((ingredient: Ingredient, idx: number) => (
                       <View
+                        key={idx}
                         style={[
-                          styles.availabilityDot,
-                          { backgroundColor: ingredient.available ? '#10b981' : '#ef4444' },
+                          styles.ingredientItem,
+                          ingredient.available ? styles.availableIngredient : styles.unavailableIngredient,
                         ]}
-                      />
-                      <Text style={styles.ingredientName}>{ingredient.name}</Text>
-                      <View style={styles.quantityContainer}>
-                        <Text style={styles.quantityMain}>
-                          {calculateAdjustedQuantity(ingredient.quantity)} {ingredient.unit}
-                        </Text>
-                        {portions !== recipe.servings && (
-                          <Text style={styles.quantityOriginal}>
-                            ({ingredient.quantity} {ingredient.unit} pour {recipe.servings})
+                      >
+                        <View
+                          style={[
+                            styles.availabilityDot,
+                            { backgroundColor: ingredient.available ? '#10b981' : '#ef4444' },
+                          ]}
+                        />
+                        <Text style={styles.ingredientName}>{ingredient.name}</Text>
+                        <View style={styles.quantityContainer}>
+                          <Text style={styles.quantityMain}>
+                            {calculateAdjustedQuantity(ingredient.quantity)} {ingredient.unit}
                           </Text>
-                        )}
+                          {portions !== recipe.servings && (
+                            <Text style={styles.quantityOriginal}>
+                              ({ingredient.quantity} {ingredient.unit} pour {recipe.servings})
+                            </Text>
+                          )}
+                        </View>
                       </View>
-                    </View>
-                  ))}
+                    ))
+                  ) : (
+                    <Text style={styles.noDataText}>Aucun ingrédient renseigné pour cette recette.</Text>
+                  )}
                 </View>
               </View>
 
@@ -236,25 +295,25 @@ const RecipeDetailPage: React.FC<Props> = ({ route, navigation }) => {
                 <View style={styles.nutritionGrid}>
                   <View style={[styles.nutritionCard, styles.caloriesCard]}>
                     <Text style={[styles.nutritionValue, styles.caloriesValue]}>
-                      {Math.round((recipe.nutrition?.calories || 0) * portions / recipe.servings)}
+                      {recipe.nutrition?.calories || 0}
                     </Text>
                     <Text style={styles.nutritionLabel}>Calories</Text>
                   </View>
                   <View style={[styles.nutritionCard, styles.proteinsCard]}>
                     <Text style={[styles.nutritionValue, styles.proteinsValue]}>
-                      {Math.round((recipe.nutrition?.proteins || 0) * portions / recipe.servings)}g
+                      {recipe.nutrition?.proteins || 0}g
                     </Text>
                     <Text style={styles.nutritionLabel}>Protéines</Text>
                   </View>
                   <View style={[styles.nutritionCard, styles.carbsCard]}>
                     <Text style={[styles.nutritionValue, styles.carbsValue]}>
-                      {Math.round((recipe.nutrition?.carbs || 0) * portions / recipe.servings)}g
+                      {recipe.nutrition?.carbs || 0}g
                     </Text>
                     <Text style={styles.nutritionLabel}>Glucides</Text>
                   </View>
                   <View style={[styles.nutritionCard, styles.fatsCard]}>
                     <Text style={[styles.nutritionValue, styles.fatsValue]}>
-                      {Math.round((recipe.nutrition?.fats || 0) * portions / recipe.servings)}g
+                      {recipe.nutrition?.fats || 0}g
                     </Text>
                     <Text style={styles.nutritionLabel}>Lipides</Text>
                   </View>
@@ -263,7 +322,7 @@ const RecipeDetailPage: React.FC<Props> = ({ route, navigation }) => {
             </View>
           )}
 
-          {currentStep === 1 && (
+          {currentTab === 1 && (
             <View style={styles.tabContent}>
               {/* Mode cuisine */}
               <LinearGradient colors={['#f97316', '#ef4444']} style={styles.cookingModeCard}>
@@ -279,83 +338,89 @@ const RecipeDetailPage: React.FC<Props> = ({ route, navigation }) => {
               </LinearGradient>
 
               {/* Étapes de la recette */}
-              {recipe.steps.map((step: any, idx: number) => (
-                <View
-                  key={idx}
-                  style={[
-                    styles.stepCard,
-                    completedSteps.includes(idx) ? styles.completedStepCard : styles.activeStepCard,
-                  ]}
-                >
-                  <View style={styles.stepContent}>
-                    <View
-                      style={[
-                        styles.stepNumberContainer,
-                        completedSteps.includes(idx) ? styles.completedStepNumber : styles.activeStepNumber,
-                      ]}
-                    >
-                      {completedSteps.includes(idx) ? (
-                        <MaterialCommunityIcons name="check-circle" size={20} color="#fff" />
-                      ) : (
-                        <Text style={styles.stepNumber}>{idx + 1}</Text>
-                      )}
-                    </View>
-
-                    <View style={styles.stepInfo}>
-                      <View style={styles.stepHeader}>
-                        <Text style={styles.stepTitle}>{step.title}</Text>
-                        <View style={styles.stepTimeContainer}>
-                          <MaterialCommunityIcons name="timer-outline" size={16} color="#6B7280" />
-                          <Text style={styles.stepTime}>{step.time}min</Text>
-                        </View>
+              {recipe.steps && recipe.steps.length > 0 ? (
+                recipe.steps.map((step: Step, idx: number) => (
+                  <View
+                    key={idx}
+                    style={[
+                      styles.stepCard,
+                      completedSteps.includes(idx) ? styles.completedStepCard : styles.activeStepCard,
+                    ]}
+                  >
+                    <View style={styles.stepContent}>
+                      <View
+                        style={[
+                          styles.stepNumberContainer,
+                          completedSteps.includes(idx) ? styles.completedStepNumber : styles.activeStepNumber,
+                        ]}
+                      >
+                        {completedSteps.includes(idx) ? (
+                          <MaterialCommunityIcons name="check-circle" size={20} color="#fff" />
+                        ) : (
+                          <Text style={styles.stepNumber}>{idx + 1}</Text>
+                        )}
                       </View>
 
-                      <Text style={styles.stepInstruction}>{step.instruction}</Text>
+                      <View style={styles.stepInfo}>
+                        <View style={styles.stepHeader}>
+                          <Text style={styles.stepTitle}>{step.title || `Étape ${idx + 1}`}</Text>
+                          {step.time && (
+                            <View style={styles.stepTimeContainer}>
+                              <MaterialCommunityIcons name="timer-outline" size={16} color="#6B7280" />
+                              <Text style={styles.stepTime}>{step.time}</Text>
+                            </View>
+                          )}
+                        </View>
 
-                      <View style={styles.stepFooter}>
-                        {step.image ? (
-                          <Image
-                            source={{ uri: step.image }}
-                            style={styles.stepImage}
-                            resizeMode="cover"
-                          />
-                        ) : (
-                          <Text style={styles.stepEmoji}>📝</Text>
-                        )}
-                        <View style={styles.stepActions}>
-                          <TouchableOpacity style={styles.timerButton} onPress={toggleTimer}>
-                            <MaterialCommunityIcons
-                              name={isTimerRunning ? 'pause' : 'timer-outline'}
-                              size={16}
-                              color="#6B7280"
+                        <Text style={styles.stepInstruction}>{step.instruction}</Text>
+
+                        <View style={styles.stepFooter}>
+                          {step.image && step.image.startsWith('http') ? (
+                            <Image
+                              source={{ uri: step.image }}
+                              style={styles.stepImage}
+                              resizeMode="cover"
                             />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={[
-                              styles.markCompleteButton,
-                              completedSteps.includes(idx) && styles.completedButton,
-                            ]}
-                            onPress={() => toggleStepComplete(idx)}
-                          >
-                            <Text
+                          ) : (
+                            <Text style={styles.stepEmoji}>📝</Text>
+                          )}
+                          <View style={styles.stepActions}>
+                            <TouchableOpacity style={styles.timerButton} onPress={toggleTimer}>
+                              <MaterialCommunityIcons
+                                name={isTimerRunning ? 'pause' : 'timer-outline'}
+                                size={16}
+                                color="#6B7280"
+                              />
+                            </TouchableOpacity>
+                            <TouchableOpacity
                               style={[
-                                styles.markCompleteText,
-                                completedSteps.includes(idx) && styles.completedText,
+                                styles.markCompleteButton,
+                                completedSteps.includes(idx) && styles.completedButton,
                               ]}
+                              onPress={() => toggleStepComplete(idx)}
                             >
-                              {completedSteps.includes(idx) ? 'Terminé' : 'Marquer terminé'}
-                            </Text>
-                          </TouchableOpacity>
+                              <Text
+                                style={[
+                                  styles.markCompleteText,
+                                  completedSteps.includes(idx) && styles.completedText,
+                                ]}
+                              >
+                                {completedSteps.includes(idx) ? 'Terminé' : 'Marquer terminé'}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
                         </View>
                       </View>
                     </View>
                   </View>
-                </View>
-              ))}
+                ))
+              ) : (
+                <Text style={styles.noDataText}>Aucune instruction disponible pour cette recette.</Text>
+              )}
             </View>
           )}
 
-          {currentStep === 2 && (
+          {currentTab === 2 && (
             <View style={styles.tabContent}>
               {/* Conseils du chef */}
               <View style={styles.section}>
@@ -364,19 +429,27 @@ const RecipeDetailPage: React.FC<Props> = ({ route, navigation }) => {
                   <Text style={styles.sectionTitle}>Conseils du Chef</Text>
                 </View>
                 <View style={styles.tipsList}>
-                  {recipe.tips.map((tip: string, idx: number) => (
-                    <View key={idx} style={styles.tipItem}>
-                      <View style={styles.tipBullet} />
-                      <Text style={styles.tipText}>{tip}</Text>
-                    </View>
-                  ))}
+                  {recipe.tips && recipe.tips.length > 0 ? (
+                    recipe.tips.map((tip: string, idx: number) => (
+                      <View key={idx} style={styles.tipItem}>
+                        <View style={styles.tipBullet} />
+                        <Text style={styles.tipText}>{tip}</Text>
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={styles.noDataText}>Aucun conseil disponible pour cette recette.</Text>
+                  )}
                 </View>
               </View>
 
               {/* Description */}
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>À propos de cette recette</Text>
-                <Text style={styles.descriptionText}>{recipe.description}</Text>
+                {recipe.description && recipe.description.trim() !== '' ? (
+                  <Text style={styles.descriptionText}>{recipe.description}</Text>
+                ) : (
+                  <Text style={styles.noDataText}>Aucune description disponible pour cette recette.</Text>
+                )}
               </View>
 
               {/* Avis */}
@@ -389,6 +462,7 @@ const RecipeDetailPage: React.FC<Props> = ({ route, navigation }) => {
                 </View>
 
                 <View style={styles.reviewsList}>
+                  {/* Données d'avis statiques pour l'exemple, à remplacer par des données dynamiques */}
                   {[
                     { name: 'Sophie M.', rating: 5, comment: 'Délicieux ! Exactement comme en Italie', time: 'Il y a 2 jours' },
                     { name: 'Marc L.', rating: 4, comment: 'Très bon, mes enfants ont adoré', time: 'Il y a 1 semaine' },
@@ -469,6 +543,7 @@ const styles = StyleSheet.create({
     fontSize: 96,
     textAlign: 'center',
     marginTop: 100,
+    color: '#fff', // Pour que l'emoji soit visible sur le gradient
   },
   backButton: {
     position: 'absolute',
@@ -485,6 +560,26 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 8,
+  },
+  backButtonEmpty: {
+    marginTop: 50,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 10,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 12,
+  },
+  backButtonEmptyText: {
+    color: '#374151',
+    fontWeight: '500',
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#ef4444',
+    textAlign: 'center',
+    marginTop: 20,
   },
   headerActions: {
     position: 'absolute',
@@ -1077,11 +1172,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  errorText: {
-    fontSize: 16,
+  noDataText: { // Nouveau style pour les messages "aucune donnée"
+    fontSize: 14,
     color: '#6B7280',
     textAlign: 'center',
-    marginTop: 20,
+    paddingVertical: 10,
   },
 });
 
