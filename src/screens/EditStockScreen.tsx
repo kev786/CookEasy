@@ -1,17 +1,17 @@
     import React, { useState, useEffect } from 'react';
-    import { 
-      View, 
-      Text, 
-      TouchableOpacity, 
-      StyleSheet, 
-      ScrollView, 
-      TextInput, 
-      Platform 
+    import {
+      View,
+      Text,
+      TouchableOpacity,
+      StyleSheet,
+      ScrollView,
+      TextInput,
+      Platform,
     } from 'react-native';
     import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
     import LinearGradient from 'react-native-linear-gradient';
     import { NativeStackScreenProps } from '@react-navigation/native-stack';
-    import DateTimePicker from '@react-native-community/datetimepicker'; 
+    import DateTimePicker from '@react-native-community/datetimepicker';
     import { RootStackParamList } from '../types';
     import { useAppContext } from '../context/AppContext';
 
@@ -44,7 +44,7 @@
 
 
       const onDateChange = (event: any, chosenDate?: Date) => {
-        setShowDatePicker(Platform.OS === 'ios'); 
+        setShowDatePicker(Platform.OS === 'ios');
         if (chosenDate) {
           setSelectedDate(chosenDate);
           const formattedDate = chosenDate.toISOString().split('T')[0];
@@ -63,14 +63,14 @@
        */
       const handleUpdateStock = () => {
         if (editedItem.name && editedItem.quantity && editedItem.expiry) {
-          setStock((prevStock) => 
-            prevStock.map((item, idx) => 
+          setStock((prevStock) =>
+            prevStock.map((item, idx) =>
               idx === itemIndex ? { ...editedItem, expiry: new Date(editedItem.expiry).toISOString().split('T')[0] } : item
             )
           );
           navigation.goBack();
         } else {
-          console.warn('Veuillez remplir tous les champs.'); 
+          console.warn('Veuillez remplir tous les champs.');
         }
       };
 
@@ -83,7 +83,7 @@
                 <MaterialCommunityIcons name="arrow-left" size={24} color="#fff" />
               </TouchableOpacity>
               <Text style={styles.headerTitle}>Modifier produit</Text>
-              <View style={styles.headerIconsPlaceholder} /> 
+              <View style={styles.headerIconsPlaceholder} />
             </View>
           </LinearGradient>
 
@@ -99,7 +99,7 @@
               value={editedItem.name}
               onChangeText={(text) => setEditedItem({ ...editedItem, name: text })}
             />
-            
+
             <View style={styles.labelContainer}>
               <MaterialCommunityIcons name="weight-kilogram" size={20} color="#374151" style={styles.labelIcon} />
               <Text style={styles.inputLabel}>Quantité</Text>
@@ -110,28 +110,28 @@
               value={editedItem.quantity}
               onChangeText={(text) => setEditedItem({ ...editedItem, quantity: text })}
             />
-            
+
             <View style={styles.labelContainer}>
               <MaterialCommunityIcons name="calendar" size={20} color="#374151" style={styles.labelIcon} />
               <Text style={styles.inputLabel}>Date d'expiration</Text>
             </View>
             <TouchableOpacity style={styles.input} onPress={handleShowDatePicker}>
               <Text style={editedItem.expiry ? styles.dateText : styles.datePlaceholder}>
-                {editedItem.expiry || "Sélectionnez une date (AAAA-MM-JJ)"}
+                {editedItem.expiry || 'Sélectionnez une date (AAAA-MM-JJ)'}
               </Text>
             </TouchableOpacity>
-            
+
             {showDatePicker && (
               <DateTimePicker
                 testID="dateTimePicker"
                 value={selectedDate}
-                mode="date" 
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'} 
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                 onChange={onDateChange}
-                minimumDate={new Date()} 
+                minimumDate={new Date()}
               />
             )}
-            
+
             <View style={styles.labelContainer}>
                 <MaterialCommunityIcons name="information" size={20} color="#374151" style={styles.labelIcon} />
                 <Text style={styles.statusLabel}>Statut :</Text>
@@ -139,40 +139,40 @@
             <View style={styles.statusContainer}>
               <TouchableOpacity
                 style={[
-                  styles.statusButton, 
-                  editedItem.status === 'good' && styles.statusSelectedGood
+                  styles.statusButton,
+                  editedItem.status === 'good' && styles.statusSelectedGood,
                 ]}
                 onPress={() => setEditedItem({ ...editedItem, status: 'good' })}
               >
                 <Text style={[
-                  styles.statusText, 
-                  editedItem.status === 'good' && styles.statusTextSelected
+                  styles.statusText,
+                  editedItem.status === 'good' && styles.statusTextSelected,
                 ]}>Bon état</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[
-                  styles.statusButton, 
-                  editedItem.status === 'warning' && styles.statusSelectedWarning
+                  styles.statusButton,
+                  editedItem.status === 'warning' && styles.statusSelectedWarning,
                 ]}
                 onPress={() => setEditedItem({ ...editedItem, status: 'warning' })}
               >
                 <Text style={[
-                  styles.statusText, 
-                  editedItem.status === 'warning' && styles.statusTextSelected
+                  styles.statusText,
+                  editedItem.status === 'warning' && styles.statusTextSelected,
                 ]}>Attention</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[
-                  styles.statusButton, 
-                  editedItem.status === 'urgent' && styles.statusSelectedUrgent
+                  styles.statusButton,
+                  editedItem.status === 'urgent' && styles.statusSelectedUrgent,
                 ]}
                 onPress={() => setEditedItem({ ...editedItem, status: 'urgent' })}
               >
                 <Text style={[
-                  styles.statusText, 
-                  editedItem.status === 'urgent' && styles.statusTextSelected
+                  styles.statusText,
+                  editedItem.status === 'urgent' && styles.statusTextSelected,
                 ]}>Urgent</Text>
               </TouchableOpacity>
             </View>
@@ -187,58 +187,58 @@
     };
 
     const styles = StyleSheet.create({
-      container: { 
-        flex: 1, 
-        backgroundColor: '#F3F4F6' 
+      container: {
+        flex: 1,
+        backgroundColor: '#F3F4F6',
       },
-      header: { 
-        paddingTop: 48, 
-        paddingBottom: 16, 
-        paddingHorizontal: 16 
+      header: {
+        paddingTop: 48,
+        paddingBottom: 16,
+        paddingHorizontal: 16,
       },
-      headerContent: { 
-        flexDirection: 'row', 
-        alignItems: 'center', 
-        justifyContent: 'space-between' 
+      headerContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
       },
-      headerTitle: { 
-        fontSize: 20, 
-        fontWeight: 'bold', 
-        color: '#fff' 
+      headerTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#fff',
       },
-      headerIconsPlaceholder: { 
-        width: 24, 
+      headerIconsPlaceholder: {
+        width: 24,
         marginHorizontal: 8,
       },
-      formContent: { 
-        padding: 16, 
-        flexGrow: 1, 
-        justifyContent: 'center', 
+      formContent: {
+        padding: 16,
+        flexGrow: 1,
+        justifyContent: 'center',
       },
-      labelContainer: { 
+      labelContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         marginBottom: 8,
         marginTop: 12,
       },
-      labelIcon: { 
+      labelIcon: {
         marginRight: 8,
       },
       inputLabel: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#374151', 
+        color: '#374151',
       },
       input: {
         borderWidth: 1,
-        borderColor: '#D1D5DB', 
+        borderColor: '#D1D5DB',
         borderRadius: 12,
         padding: 14,
         marginBottom: 12,
         fontSize: 16,
         color: '#1F2937',
-        backgroundColor: '#fff', 
-        justifyContent: 'center', 
+        backgroundColor: '#fff',
+        justifyContent: 'center',
       },
       dateText: {
         fontSize: 16,
@@ -246,68 +246,67 @@
       },
       datePlaceholder: {
         fontSize: 16,
-        color: '#6B7280', 
+        color: '#6B7280',
       },
-      statusContainer: { 
-        flexDirection: 'row', 
-        justifyContent: 'space-around', 
+      statusContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
         marginTop: 8,
         marginBottom: 24,
-        backgroundColor: '#E5E7EB', 
+        backgroundColor: '#E5E7EB',
         borderRadius: 12,
         padding: 6,
       },
-      statusLabel: { 
-        fontSize: 16, 
-        fontWeight: '600', 
-        color: '#374151', 
+      statusLabel: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#374151',
       },
       statusButton: {
-        flex: 1, 
+        flex: 1,
         paddingVertical: 10,
         borderRadius: 10,
         alignItems: 'center',
-        marginHorizontal: 4, 
-        backgroundColor: 'transparent', 
+        marginHorizontal: 4,
+        backgroundColor: 'transparent',
       },
-      statusSelectedGood: { 
-        backgroundColor: '#d1fae5', 
-        borderWidth: 1, 
-        borderColor: '#16a34a' 
+      statusSelectedGood: {
+        backgroundColor: '#d1fae5',
+        borderWidth: 1,
+        borderColor: '#16a34a',
       },
-      statusSelectedWarning: { 
-        backgroundColor: '#fefce8', 
-        borderWidth: 1, 
-        borderColor: '#ca8a04' 
+      statusSelectedWarning: {
+        backgroundColor: '#fefce8',
+        borderWidth: 1,
+        borderColor: '#ca8a04',
       },
-      statusSelectedUrgent: { 
-        backgroundColor: '#fef2f2', 
-        borderWidth: 1, 
-        borderColor: '#b91c1c' 
+      statusSelectedUrgent: {
+        backgroundColor: '#fef2f2',
+        borderWidth: 1,
+        borderColor: '#b91c1c',
       },
-      statusText: { 
-        fontSize: 14, 
-        fontWeight: '500', 
-        color: '#4B5563', 
+      statusText: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: '#4B5563',
       },
       statusTextSelected: {
-        fontWeight: 'bold', 
-        color: '#1F2937', 
+        fontWeight: 'bold',
+        color: '#1F2937',
       },
       addButton: {
-        backgroundColor: '#a855f7', 
+        backgroundColor: '#a855f7',
         padding: 16,
         borderRadius: 12,
         alignItems: 'center',
-        marginTop: 20, 
-        elevation: 3, 
+        marginTop: 20,
+        elevation: 3,
       },
-      addButtonText: { 
-        fontSize: 18, 
-        fontWeight: '700', 
-        color: '#fff' 
+      addButtonText: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#fff',
       },
     });
 
     export default EditStockScreen;
-    

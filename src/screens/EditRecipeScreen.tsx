@@ -10,14 +10,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
-  ActivityIndicator, 
+  ActivityIndicator,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
-import { db } from '../services/firebase'; 
-import { doc, setDoc, collection } from '@react-native-firebase/firestore'; 
+import { db } from '../services/firebase';
+import { doc, setDoc } from '@react-native-firebase/firestore';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 
 // Le type des props pour cet écran, spécifiant qu'il attend un objet 'recipe'
@@ -30,28 +30,28 @@ interface Ingredient {
 
 const EditRecipeScreen: React.FC<Props> = ({ navigation, route }) => {
   // L'objet 'recipe' est obligatoire et passé via route.params
-  const initialRecipe = route.params.recipe; 
+  const initialRecipe = route.params.recipe;
 
   const [recipeName, setRecipeName] = useState(initialRecipe.name || '');
-  
+
   // Correction ici : Vérifiez si 'time' existe avant d'appeler .replace()
-  const [time, setTime] = useState(initialRecipe.time?.replace(' min', '') || ''); 
-  
+  const [time, setTime] = useState(initialRecipe.time?.replace(' min', '') || '');
+
   const [difficulty, setDifficulty] = useState(initialRecipe.difficulty || 'Facile');
-  
+
   // Correction ici : Utilisez le chaînage optionnel et fournissez une valeur par défaut sûre
   const [ingredients, setIngredients] = useState<Ingredient[]>(
-    initialRecipe.ingredients?.map((ing: string) => { 
+    initialRecipe.ingredients?.map((ing: string) => {
       const [name, quantity] = ing.split(' (');
       return { name: name, quantity: quantity.replace(')', '') };
-    }) || [{ name: '', quantity: '' }] 
+    }) || [{ name: '', quantity: '' }]
   );
-  
+
   // Correction ici : Utilisez le chaînage optionnel et fournissez une valeur par défaut sûre
   const [instructions, setInstructions] = useState(
-    initialRecipe.steps?.map((s: any) => s.instruction).join('\n') || '' 
+    initialRecipe.steps?.map((s: any) => s.instruction).join('\n') || ''
   );
-  
+
   const [showDifficultyDropdown, setShowDifficultyDropdown] = useState(false);
   const [imageUri, setImageUri] = useState<string | null>(initialRecipe.image || null);
   const [isLoading, setIsLoading] = useState(false);
@@ -145,17 +145,17 @@ const EditRecipeScreen: React.FC<Props> = ({ navigation, route }) => {
       return;
     }
 
-    setIsLoading(true); 
-    console.log('1. saveRecipe: Début de la fonction, isLoading activé.'); 
+    setIsLoading(true);
+    console.log('1. saveRecipe: Début de la fonction, isLoading activé.');
 
     const { calories, budget } = calculateNutrition();
 
     try {
-      const recipeId = initialRecipe.id; 
-      console.log('2. saveRecipe: Tente de mettre à jour la recette avec l\'ID :', recipeId); 
-      
+      const recipeId = initialRecipe.id;
+      console.log('2. saveRecipe: Tente de mettre à jour la recette avec l\'ID :', recipeId);
+
       setDoc(doc(db, 'recipes', recipeId), {
-        id: recipeId, 
+        id: recipeId,
         name: recipeName,
         time: `${time} min`,
         difficulty,
@@ -163,33 +163,33 @@ const EditRecipeScreen: React.FC<Props> = ({ navigation, route }) => {
         calories,
         budget,
         ingredients: ingredients.map((ing) => `${ing.name} (${ing.quantity})`),
-        isPersonal: initialRecipe.isPersonal, 
-        creator: initialRecipe.creator || 'Kev', 
-        availableIngredients: 0, 
-      }, { merge: true }).then(() => { 
-        console.log('3. saveRecipe: setDoc terminé avec succès (promesse résolue).'); 
+        isPersonal: initialRecipe.isPersonal,
+        creator: initialRecipe.creator || 'Kev',
+        availableIngredients: 0,
+      }, { merge: true }).then(() => {
+        console.log('3. saveRecipe: setDoc terminé avec succès (promesse résolue).');
       }).catch((error) => {
-        console.error('ERREUR Firebase asynchrone lors de l\'enregistrement de la recette :', error); 
+        console.error('ERREUR Firebase asynchrone lors de l\'enregistrement de la recette :', error);
         Alert.alert('Erreur Firebase', error.message || 'Échec de la modification de la recette en arrière-plan. Vérifiez vos permissions.');
       });
-      
-      navigation.goBack(); 
-      console.log('4. saveRecipe: Navigation vers l\'écran précédent initiée (goBack).'); 
+
+      navigation.goBack();
+      console.log('4. saveRecipe: Navigation vers l\'écran précédent initiée (goBack).');
 
       Alert.alert(
         '✅ Succès',
         'Recette modifiée avec succès !'
       );
-      console.log('5. saveRecipe: Alerte de succès affichée.'); 
+      console.log('5. saveRecipe: Alerte de succès affichée.');
 
     } catch (error: any) {
-      console.error('ERREUR SYNCHRONE lors de l\'enregistrement de la recette :', error); 
+      console.error('ERREUR SYNCHRONE lors de l\'enregistrement de la recette :', error);
       Alert.alert('Erreur', error.message || 'Échec de la modification de la recette (erreur synchrone).');
     } finally {
       setTimeout(() => {
-        setIsLoading(false); 
-        console.log('6. saveRecipe: Fonction terminée, isLoading désactivé (via setTimeout).'); 
-      }, 500); 
+        setIsLoading(false);
+        console.log('6. saveRecipe: Fonction terminée, isLoading désactivé (via setTimeout).');
+      }, 500);
     }
   };
 
@@ -200,11 +200,11 @@ const EditRecipeScreen: React.FC<Props> = ({ navigation, route }) => {
           <View style={styles.headerContent}>
             <TouchableOpacity onPress={() => navigation.goBack()}>
               {/* Correction 1: Envelopper MaterialCommunityIcons dans Text si nécessaire */}
-              <Text> 
+              <Text>
                 <MaterialCommunityIcons name="arrow-left" size={24} color="#fff" />
               </Text>
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Modifier la Recette</Text> 
+            <Text style={styles.headerTitle}>Modifier la Recette</Text>
             <View style={styles.headerIcons}>
               {/* Correction 2: Envelopper MaterialCommunityIcons dans Text */}
               <Text style={styles.icon}>
@@ -367,21 +367,21 @@ const EditRecipeScreen: React.FC<Props> = ({ navigation, route }) => {
           </View>
 
           <View style={styles.actionButtonContainer}>
-            <TouchableOpacity 
-              onPress={saveRecipe} 
+            <TouchableOpacity
+              onPress={saveRecipe}
               style={styles.publishButtonWrapper}
-              disabled={isLoading} 
+              disabled={isLoading}
             >
               <LinearGradient colors={isLoading ? ['#ccc', '#aaa'] : ['#f97316', '#ef4444']} style={styles.publishButton}>
                 {isLoading ? (
-                  <ActivityIndicator color="#fff" /> 
+                  <ActivityIndicator color="#fff" />
                 ) : (
                   <>
                     {/* Correction 9: Envelopper MaterialCommunityIcons dans Text */}
                     <Text style={styles.buttonIcon}>
                       <MaterialCommunityIcons name="check-circle" size={20} color="#fff" />
                     </Text>
-                    <Text style={styles.publishButtonText}>Enregistrer les Modifications</Text> 
+                    <Text style={styles.publishButtonText}>Enregistrer les Modifications</Text>
                   </>
                 )}
               </LinearGradient>

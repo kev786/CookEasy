@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-shadow */
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, Alert, Image } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -5,7 +6,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
 import { db } from '../services/firebase';
-import { collection, onSnapshot, doc, deleteDoc } from '@react-native-firebase/firestore'; 
+import { collection, onSnapshot, doc, deleteDoc } from '@react-native-firebase/firestore';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Recipes'>;
 
@@ -35,10 +36,10 @@ const RecipesScreen: React.FC<Props> = ({ navigation }) => {
         recipesList.push({ id: doc.id, ...doc.data() } as Recipe);
       });
       setRecipes(recipesList);
-      setFilteredRecipes(recipesList); 
+      setFilteredRecipes(recipesList);
     });
 
-    return () => unsubscribe(); 
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -60,13 +61,7 @@ const RecipesScreen: React.FC<Props> = ({ navigation }) => {
     navigation.navigate('RecipeDetail', { recipe });
   };
 
-  /**
-   * Gère la modification d'une recette.
-   * Navigue vers EditRecipeScreen en lui passant l'objet recette.
-   * @param recipe L'objet recette à modifier.
-   */
   const handleEditRecipe = (recipe: Recipe) => {
-    // MODIFICATION ICI : Navigue vers le nouvel écran EditRecipe
     navigation.navigate('EditRecipe', { recipe });
   };
 
@@ -75,10 +70,7 @@ const RecipesScreen: React.FC<Props> = ({ navigation }) => {
       'Confirmer la suppression',
       `Êtes-vous sûr de vouloir supprimer la recette "${recipeName}" ?`,
       [
-        {
-          text: 'Annuler',
-          style: 'cancel',
-        },
+        { text: 'Annuler', style: 'cancel' },
         {
           text: 'Supprimer',
           onPress: async () => {
@@ -99,7 +91,6 @@ const RecipesScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <LinearGradient colors={['#f97316', '#ef4444']} style={styles.header}>
         <View style={styles.headerContent}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -116,7 +107,6 @@ const RecipesScreen: React.FC<Props> = ({ navigation }) => {
       </LinearGradient>
 
       <View style={styles.content}>
-        {/* Barre de recherche */}
         <View style={styles.searchContainer}>
           <MaterialCommunityIcons name="magnify" size={20} color="#9CA3AF" style={styles.searchIcon} />
           <TextInput
@@ -128,7 +118,6 @@ const RecipesScreen: React.FC<Props> = ({ navigation }) => {
           />
         </View>
 
-        {/* Boutons d'action */}
         <View style={styles.actionButtons}>
           <TouchableOpacity
             style={styles.actionButton}
@@ -141,7 +130,7 @@ const RecipesScreen: React.FC<Props> = ({ navigation }) => {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => Alert.alert('Info', 'Suggestions IA à implémenter.')}
+            onPress={() => navigation.navigate('IARecipeSuggestions')}
           >
             <LinearGradient colors={['#a855f7', '#ec4899']} style={styles.gradientButton}>
               <Text style={styles.buttonText}>✨ Suggestions IA</Text>
@@ -149,7 +138,6 @@ const RecipesScreen: React.FC<Props> = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Liste des recettes */}
         <FlatList
           data={filteredRecipes}
           keyExtractor={(item) => item.id}
@@ -207,21 +195,18 @@ const RecipesScreen: React.FC<Props> = ({ navigation }) => {
                   </View>
                 </TouchableOpacity>
                 <View style={styles.recipeActions}>
-                  {/* Bouton Modifier */}
                   <TouchableOpacity
                     style={styles.actionButtonCircle}
                     onPress={() => handleEditRecipe(item)}
                   >
                     <MaterialCommunityIcons name="pencil" size={20} color="#3b82f6" />
                   </TouchableOpacity>
-                  {/* Bouton Supprimer */}
                   <TouchableOpacity
                     style={styles.actionButtonCircle}
                     onPress={() => handleDeleteRecipe(item.id, item.name)}
                   >
                     <MaterialCommunityIcons name="trash-can-outline" size={20} color="#ef4444" />
                   </TouchableOpacity>
-                  {/* Bouton Ajouter à la liste de courses */}
                   <TouchableOpacity
                     style={styles.shoppingCartIcon}
                     onPress={() => addToShoppingList(item.id)}
@@ -301,7 +286,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 12,
-    zIndex: 1, 
+    zIndex: 1,
   },
   personalBadgeText: { fontSize: 12, fontWeight: '500', color: '#f97316' },
   recipeContainer: {
@@ -333,15 +318,15 @@ const styles = StyleSheet.create({
   },
   ingredientText: { fontSize: 12, color: '#6B7280' },
   recipeActions: {
-    flexDirection: 'row', 
+    flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'flex-end',
     paddingTop: 8,
-    gap: 8, 
+    gap: 8,
   },
-  actionButtonCircle: { 
+  actionButtonCircle: {
     backgroundColor: '#E5E7EB',
-    borderRadius: 20, 
+    borderRadius: 20,
     width: 40,
     height: 40,
     justifyContent: 'center',
@@ -353,9 +338,9 @@ const styles = StyleSheet.create({
     shadowRadius: 1.00,
   },
   shoppingCartIcon: {
-    padding: 10, 
-    borderRadius: 20, 
-    backgroundColor: '#E5E7EB', 
+    padding: 10,
+    borderRadius: 20,
+    backgroundColor: '#E5E7EB',
     width: 40,
     height: 40,
     justifyContent: 'center',

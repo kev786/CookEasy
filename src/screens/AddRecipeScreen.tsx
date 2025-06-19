@@ -10,14 +10,15 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
-  ActivityIndicator, 
+  ActivityIndicator,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
-import { db } from '../services/firebase'; 
-import { doc, setDoc, collection } from '@react-native-firebase/firestore'; 
+import { db } from '../services/firebase';
+import { doc, setDoc, collection } from '@react-native-firebase/firestore';
+import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddRecipe'>;
 
@@ -132,15 +133,15 @@ const AddRecipeScreen: React.FC<Props> = ({ navigation, route }) => {
       return;
     }
 
-    setIsLoading(true); 
-    console.log('1. saveRecipe: Début de la fonction, isLoading activé.'); 
+    setIsLoading(true);
+    console.log('1. saveRecipe: Début de la fonction, isLoading activé.');
 
     const { calories, budget } = calculateNutrition();
 
     try {
       const recipeId = route.params?.recipe?.id || doc(collection(db, 'recipes')).id;
-      console.log('2. saveRecipe: Tente de sauvegarder la recette avec l\'ID :', recipeId); 
-      
+      console.log('2. saveRecipe: Tente de sauvegarder la recette avec l\'ID :', recipeId);
+
       // --- MODIFICATION CLÉ : Retrait de 'await' pour un comportement "fire-and-forget" ---
       setDoc(doc(db, 'recipes', recipeId), {
         id: recipeId,
@@ -156,35 +157,35 @@ const AddRecipeScreen: React.FC<Props> = ({ navigation, route }) => {
         creator: 'Kev',
       }).then(() => {
         // Ce bloc se déclenche quand Firebase confirme la sauvegarde
-        console.log('3. saveRecipe: setDoc terminé avec succès (promesse résolue).'); 
+        console.log('3. saveRecipe: setDoc terminé avec succès (promesse résolue).');
         // Pas besoin de setIsLoading(false) ici car le finally s'en chargera
       }).catch((error) => {
         // Ce bloc se déclenche si Firebase rejette l'opération (ex: règles de sécurité)
-        console.error('ERREUR Firebase asynchrone lors de l\'enregistrement de la recette :', error); 
+        console.error('ERREUR Firebase asynchrone lors de l\'enregistrement de la recette :', error);
         Alert.alert('Erreur Firebase', error.message || 'Échec de l\'ajout de la recette en arrière-plan. Vérifiez vos permissions.');
       });
       // --- FIN DE LA MODIFICATION CLÉ ---
-      
+
       // Ces lignes s'exécuteront immédiatement après le lancement de setDoc, sans attendre sa résolution
-      navigation.goBack(); 
-      console.log('4. saveRecipe: Navigation vers l\'écran précédent initiée (goBack).'); 
+      navigation.goBack();
+      console.log('4. saveRecipe: Navigation vers l\'écran précédent initiée (goBack).');
 
       Alert.alert(
         '✅ Succès',
         'Recette enregistrée avec succès !'
       );
-      console.log('5. saveRecipe: Alerte de succès affichée.'); 
+      console.log('5. saveRecipe: Alerte de succès affichée.');
 
     } catch (error: any) {
       // Ce bloc catch ne capturera que les erreurs synchrone avant l'appel à setDoc
-      console.error('ERREUR SYNCHRONE lors de l\'enregistrement de la recette :', error); 
+      console.error('ERREUR SYNCHRONE lors de l\'enregistrement de la recette :', error);
       Alert.alert('Erreur', error.message || 'Échec de l\'ajout de la recette (erreur synchrone).');
     } finally {
       // Ce bloc est TOUJOURS exécuté après le try ou le catch synchrone
       // Le setTimeout est une sécurité pour s'assurer que l'état isLoading est bien mis à jour.
       setTimeout(() => {
-        setIsLoading(false); 
-        console.log('6. saveRecipe: Fonction terminée, isLoading désactivé (via setTimeout).'); 
+        setIsLoading(false);
+        console.log('6. saveRecipe: Fonction terminée, isLoading désactivé (via setTimeout).');
       }, 500); // Délai de 500 ms
     }
   };
@@ -341,14 +342,14 @@ const AddRecipeScreen: React.FC<Props> = ({ navigation, route }) => {
           </View>
 
           <View style={styles.actionButtonContainer}>
-            <TouchableOpacity 
-              onPress={saveRecipe} 
+            <TouchableOpacity
+              onPress={saveRecipe}
               style={styles.publishButtonWrapper}
-              disabled={isLoading} 
+              disabled={isLoading}
             >
               <LinearGradient colors={isLoading ? ['#ccc', '#aaa'] : ['#f97316', '#ef4444']} style={styles.publishButton}>
                 {isLoading ? (
-                  <ActivityIndicator color="#fff" /> 
+                  <ActivityIndicator color="#fff" />
                 ) : (
                   <>
                     <MaterialCommunityIcons name="check-circle" size={20} color="#fff" style={styles.buttonIcon} />

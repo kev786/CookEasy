@@ -15,10 +15,11 @@ import AddMemberScreen from '../screens/AddMemberScreen';
 import ShoppingScreen from '../screens/ShoppingScreen';
 import StockScreen from '../screens/StockScreen';
 import AddShoppingItem from '../screens/AddShoppingItem';
-import AIGenerate from '../screens/AIGenerate'; 
-import AddStockScreen from '../screens/AddStockScreen'; 
-import EditStockScreen from '../screens/EditStockScreen'; 
-import EditRecipeScreen from '../screens/EditRecipeScreen'; // NOUVEL IMPORT
+import AIGenerate from '../screens/AIGenerate';
+import AddStockScreen from '../screens/AddStockScreen';
+import EditStockScreen from '../screens/EditStockScreen';
+import EditRecipeScreen from '../screens/EditRecipeScreen';
+import IARecipeSuggestionsScreen from '../screens/IARecipeSuggestionsScreen'; // NOUVEAU IMPORT
 import { Member } from '../screens/ProfileScreen';
 
 // Types pour la navigation
@@ -37,8 +38,9 @@ export type RootStackParamList = {
   AddShoppingItem: undefined;
   AIGenerate: undefined;
   AddStock: undefined;
-  EditStock: { item: { name: string; quantity: string; expiry: string; status: 'good' | 'warning' | 'urgent' }; itemIndex: number }; 
+  EditStock: { item: { name: string; quantity: string; expiry: string; status: 'good' | 'warning' | 'urgent' }; itemIndex: number };
   EditRecipe: { recipe: any };
+  IARecipeSuggestions: undefined; // NOUVEAU
 };
 
 // Type pour les props des écrans du Tab Navigator
@@ -59,11 +61,11 @@ const MainTabs = () => (
     screenOptions={({ route }) => ({
       tabBarIcon: ({ color, size }) => {
         let iconName: string = 'help';
-        if (route.name === 'Home') {iconName = 'home';}
-        else if (route.name === 'Recipes') {iconName = 'chef-hat';}
-        else if (route.name === 'Shopping') {iconName = 'cart-outline';}
-        else if (route.name === 'Stock') {iconName = 'package-variant-closed';}
-        else if (route.name === 'Profile') {iconName = 'account';}
+        if (route.name === 'Home') { iconName = 'home'; }
+        else if (route.name === 'Recipes') { iconName = 'chef-hat'; }
+        else if (route.name === 'Shopping') { iconName = 'cart-outline'; }
+        else if (route.name === 'Stock') { iconName = 'package-variant-closed'; }
+        else if (route.name === 'Profile') { iconName = 'account'; }
         return <MaterialCommunityIcons name={iconName} size={size} color={color} />;
       },
       tabBarActiveTintColor: '#f97316',
@@ -133,10 +135,14 @@ const AppNavigator: React.FC = () => {
           component={EditStockScreen}
           options={{ headerShown: false }}
         />
-        {/* NOUVEAU : Ajout de l'écran EditRecipe */}
         <Stack.Screen
           name="EditRecipe"
           component={EditRecipeScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen // NOUVEAU
+          name="IARecipeSuggestions"
+          component={IARecipeSuggestionsScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>
