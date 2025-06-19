@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Animated,
-  Alert, // Gardé pour les messages d'erreur/succès
+  Alert,
   Platform,
   Modal,
   ScrollView,
@@ -17,7 +17,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { auth, db } from '../services/firebase'; // Importer directement auth et db
-import { doc, setDoc } from '@react-native-firebase/firestore'; // setDoc est réimporté
+import { doc, setDoc } from '@react-native-firebase/firestore';
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -25,10 +25,6 @@ export type RootStackParamList = {
   Main: undefined; // Ajouté pour correspondre à AppNavigator
   Recipes: undefined;
   Profile: undefined;
-  Home: undefined; 
-  RecipeDetail: { recipe: any }; 
-  AddRecipe: {};
-  EditRecipe: { recipe: any };
 };
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Auth'>;
@@ -113,7 +109,7 @@ const AuthScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const handleSubmit = async () => {
-    if (!validateForm()) { return; }
+    if (!validateForm()) {return;}
 
     Animated.sequence([
       Animated.timing(scaleAnim, {
@@ -143,49 +139,47 @@ const AuthScreen: React.FC<Props> = ({ navigation }) => {
         );
         const user = userCredential.user;
         if (user) {
-          console.log('Utilisateur créé dans Firebase Auth:', user.uid);
+          console.log('Utilisateur créé:', user.uid);
           try {
             await user.updateProfile({
               displayName: `${formData.firstName} ${formData.lastName}`,
             });
-            console.log('Profil Firebase Auth mis à jour avec succès');
-            // Nous n'affichons plus d'alerte ici pour ne pas bloquer le flux principal
+            console.log('Profil mis à jour avec succès');
           } catch (profileError: any) {
-            console.error('Erreur lors de la mise à jour du profil Firebase Auth:', profileError.message);
-            // L'alerte pour l'échec de la mise à jour du profil est conservée pour information
-            Alert.alert('Avertissement', `Compte créé, mais échec de la mise à jour du profil d'affichage: ${profileError.message}`);
+            console.error('Erreur lors de la mise à jour du profil:', profileError.message);
+            Alert.alert('Avertissement', 'Compte créé, mais échec de la mise à jour du profil.');
           }
 
-          // ---------- DÉBUT : BLOC setDoc RÉACTIVÉ SANS AWAIT ----------
-          setDoc(doc(db, 'users', user.uid), { // PLUS DE 'AWAIT' ICI
-            firstName: formData.firstName,
-            lastName: formData.lastName,
-            phone: formData.phone || '',
-            familySize: parseInt(formData.familySize, 10),
-            weeklyBudget: parseInt(formData.weeklyBudget, 10),
-            createdAt: new Date(),
-          })
-          .then(() => {
-            console.log('Données utilisateur enregistrées dans Firestore (en arrière-plan)');
-            // Pas d'Alert.alert ici pour ne pas bloquer l'UI et permettre la redirection immédiate
-          })
-          .catch((firestoreError: any) => {
-            console.error('Erreur lors de l\'enregistrement des données utilisateur dans Firestore (en arrière-plan):', firestoreError.message);
-            // Pas d'Alert.alert ici non plus, l'erreur est loggée dans la console
-          });
-          // ---------- FIN : BLOC setDoc RÉACTIVÉ SANS AWAIT ----------
+          try {
+            await setDoc(doc(db, 'users', user.uid), {
+              firstName: formData.firstName,
+              lastName: formData.lastName,
+              phone: formData.phone || '',
+              familySize: parseInt(formData.familySize, 10),
+              weeklyBudget: parseInt(formData.weeklyBudget, 10),
+              createdAt: new Date(),
+            });
+            console.log('Données utilisateur enregistrées dans Firestore');
+          } catch (firestoreError: any) {
+            console.error('Erreur lors de l\'enregistrement dans Firestore:', firestoreError.message);
+            Alert.alert(
+              'Erreur',
+              'Compte créé, mais échec de l\'enregistrement des données. Vérifiez les permissions Firestore.'
+            );
+            return;
+          }
 
           console.log('Inscription terminée, navigation vers Main');
-          Alert.alert('Succès', 'Inscription réussie ! Redirection...'); // Cette alerte est pour le succès global
-          navigation.replace('Main'); // Redirige directement vers Main après inscription
+          Alert.alert('Succès', 'Inscription réussie !');
+          navigation.replace('Main'); // Redirige vers Main (premier onglet: Home)
         } else {
-          console.error('Erreur: Aucun utilisateur retourné après la création du compte.');
+          console.error('Aucun utilisateur retourné après création');
           Alert.alert('Erreur', 'Échec de la création du compte: utilisateur non trouvé.');
         }
       }
     } catch (error: any) {
-      console.error('Erreur générale lors de l\'authentification Firebase:', error.message);
-      Alert.alert('Erreur d\'authentification', error.message || 'Échec de l’authentification. Veuillez réessayer.');
+      console.error('Erreur lors de l\'authentification:', error.message);
+      Alert.alert('Erreur', error.message || 'Échec de l’authentification.');
     }
   };
 
@@ -196,10 +190,10 @@ const AuthScreen: React.FC<Props> = ({ navigation }) => {
     }
     try {
       await auth.sendPasswordResetEmail(formData.email);
-      Alert.alert('Succès', 'Un email de réinitialisation de mot de passe a été envoyé à votre adresse.');
+      Alert.alert('Succès', 'Un email de réinitialisation a été envoyé.');
     } catch (error: any) {
       console.error('Erreur lors de l\'envoi de l\'email de réinitialisation:', error.message);
-      Alert.alert('Erreur', error.message || 'Échec de l’envoi de l’email de réinitialisation.');
+      Alert.alert('Erreur', error.message || 'Échec de l’envoi de l’email.');
     }
   };
 
