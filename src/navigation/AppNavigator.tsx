@@ -15,6 +15,7 @@ import AddMemberScreen from '../screens/AddMemberScreen';
 import ShoppingScreen from '../screens/ShoppingScreen';
 import StockScreen from '../screens/StockScreen';
 import AddShoppingItem from '../screens/AddShoppingItem';
+import MarketMapScreen from '../screens/MarketMapScreen';
 import AIGenerate from '../screens/AIGenerate'; 
 import AddStockScreen from '../screens/AddStockScreen'; 
 import EditStockScreen from '../screens/EditStockScreen'; 
@@ -47,7 +48,9 @@ type TabParamList = {
   Recipes: undefined;
   Shopping: undefined;
   Stock: undefined;
+  MarketMap: undefined;
   Profile: undefined;
+
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -63,6 +66,7 @@ const MainTabs = () => (
         else if (route.name === 'Recipes') {iconName = 'chef-hat';}
         else if (route.name === 'Shopping') {iconName = 'cart-outline';}
         else if (route.name === 'Stock') {iconName = 'package-variant-closed';}
+        else if (route.name === 'MarketMap') {iconName = 'store';}
         else if (route.name === 'Profile') {iconName = 'account';}
         return <MaterialCommunityIcons name={iconName} size={size} color={color} />;
       },
@@ -75,6 +79,7 @@ const MainTabs = () => (
     <Tab.Screen name="Recipes" component={RecipesScreen} />
     <Tab.Screen name="Shopping" component={ShoppingScreen} />
     <Tab.Screen name="Stock" component={StockScreen} />
+    <Tab.Screen name="MarketMap" component={MarketMapScreen} />
     <Tab.Screen name="Profile" component={ProfileScreen} />
   </Tab.Navigator>
 );
@@ -140,6 +145,11 @@ const AppNavigator: React.FC = () => {
           options={{ headerShown: false }}
         />
       </Stack.Navigator>
+      <Stack.Screen 
+      name="MarketMap" 
+      component={MarketMapScreen} 
+      options={{ headerShown: false }} />
+
     </NavigationContainer>
   );
 };

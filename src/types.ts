@@ -13,6 +13,7 @@ export type RootStackParamList = {
   AddStock: undefined;
   EditStock: { item: { name: string; quantity: string; expiry: string; status: 'good' | 'warning' | 'urgent' }; itemIndex: number };
   EditRecipe: { recipe: any }; 
+  MarketMap: undefined;
 };
 
 export interface Recipe {
