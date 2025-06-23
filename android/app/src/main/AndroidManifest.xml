@@ -16,7 +16,7 @@
       android:supportsRtl="true">
       <meta-data
         android:name="com.google.android.geo.API_KEY"
-        android:value="AIzaSyDqJtH6hpF1i1ct9qHzKsqHh4wzMwZTzfw" />
+        android:value="" />
       <!-- Assurez-vous que le service de localisation est activé -->
       <uses-library
           android:name="org.apache.http.legacy"
