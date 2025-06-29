@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Modal, Platform } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -10,12 +10,15 @@ import { auth } from '../services/firebase';
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
 const HomeScreen: React.FC<Props> = ({ navigation }) => {
-  const { familyProfile, recipes, setRecipes, shoppingList, stock } = useAppContext();
+  // Changement ici : shoppingList est remplacé par shoppingLists
+  const { familyProfile, recipes, setRecipes, shoppingLists, stock } = useAppContext();
   const userName = auth.currentUser?.displayName || 'Famille';
+
+  // Calculer le nombre total d'articles de toutes les listes de courses
+  const shoppingItemCount = shoppingLists.reduce((total, list) => total + list.items.length, 0);
 
   // Compteurs dynamiques
   const recipeCount = recipes.filter((recipe) => recipe.isPersonal).length;
-  const shoppingItemCount = shoppingList.length;
   const stockItemCount = stock.length;
 
   // État pour le modal d'ajout de recette
@@ -52,7 +55,10 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         creator: userName,
       });
     } else {
-      alert('Veuillez remplir tous les champs principaux.');
+      // Remplacer alert() par une alerte personnalisée ou un message dans l'UI
+      console.warn('Veuillez remplir tous les champs principaux.');
+      // Vous pourriez utiliser un état pour afficher un message d'erreur sur l'écran
+      // Par exemple : setErrorMesssage('Veuillez remplir tous les champs principaux.');
     }
   };
 
@@ -76,16 +82,22 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         <View style={styles.familyCard}>
           <View style={styles.familyHeader}>
             <Text style={styles.familyTitle}>👨‍👩‍👧 {userName}</Text>
-            <MaterialCommunityIcons name="pencil" size={20} color="#6B7280" />
+            <TouchableOpacity onPress={() => {/* Gérer la modification du profil */}}>
+              <MaterialCommunityIcons name="pencil" size={20} color="#6B7280" />
+            </TouchableOpacity>
           </View>
           <View style={styles.membersContainer}>
-            {familyProfile.members.map((member, idx) => (
-              <View key={idx} style={styles.memberTag}>
-                <Text style={styles.memberText}>
-                  {member.name} ({member.age} ans)
-                </Text>
-              </View>
-            ))}
+            {familyProfile.members.length > 0 ? (
+              familyProfile.members.map((member, idx) => (
+                <View key={idx} style={styles.memberTag}>
+                  <Text style={styles.memberText}>
+                    {member.name} ({member.age} ans)
+                  </Text>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.noMemberText}>Ajoutez des membres de votre famille pour personnaliser vos recettes!</Text>
+            )}
           </View>
         </View>
 
@@ -104,7 +116,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             </LinearGradient>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionCard}>
+          <TouchableOpacity style={styles.actionCard} onPress={() => navigation.navigate('AIGenerate')}>
             <LinearGradient colors={['#a855f7', '#ec4899']} style={styles.gradientAction}>
               <Text style={styles.aiIcon}>✨</Text>
               <View>
@@ -144,7 +156,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Bouton flottant pour ajouter une recette */}
+        {/* Bouton flottant pour ajouter une recette (maintenu car c'était là avant) */}
         <TouchableOpacity
           style={styles.floatingButton}
           onPress={() => setModalVisible(true)}
@@ -189,9 +201,14 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             <View style={styles.alertDot} />
             <Text style={styles.alertTitle}>Alertes Stock</Text>
           </View>
-          <Text style={styles.alertText}>
-            Yaourts expirent dans 2 jours • Lait expire bientôt
-          </Text>
+          {stock.filter(item => item.status === 'urgent' || item.status === 'warning').length > 0 ? (
+            <Text style={styles.alertText}>
+              {stock.filter(item => item.status === 'urgent').map(item => `${item.name} expirent dans 2 jours`).join(' • ')}
+              {stock.filter(item => item.status === 'warning').map(item => `${item.name} expire bientôt`).join(' • ')}
+            </Text>
+          ) : (
+            <Text style={styles.alertText}>Aucune alerte de stock pour le moment.</Text>
+          )}
         </View>
       </ScrollView>
 
@@ -253,7 +270,19 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F3F4F6' },
-  header: { paddingTop: 48, paddingBottom: 16, paddingHorizontal: 16 },
+  header: {
+    paddingTop: Platform.OS === 'ios' ? 48 : 24,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    zIndex: 10,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
   headerContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#fff' },
   headerIcons: { flexDirection: 'row', alignItems: 'center' },
@@ -274,6 +303,10 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 24,
     elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   familyHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
   familyTitle: { fontSize: 18, fontWeight: '600', color: '#1F2937' },
@@ -285,6 +318,11 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   memberText: { fontSize: 14, color: '#f97316' },
+  noMemberText: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontStyle: 'italic',
+  },
   actionGrid: { flexDirection: 'row', gap: 16, marginBottom: 24 },
   actionCard: { flex: 1 },
   gradientAction: {
@@ -292,6 +330,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 24,
     borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   actionIcon: { marginRight: 16 },
   actionTitle: { fontSize: 18, fontWeight: '600', color: '#fff' },
@@ -302,6 +345,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   smallActionIcon: { marginRight: 12 },
   smallActionTitle: { fontSize: 16, fontWeight: '600', color: '#fff' },
@@ -326,6 +374,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
     elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
   },
   recipeImage: { fontSize: 40, marginRight: 16 },
   recipeInfo: { flex: 1 },
@@ -344,6 +396,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
   },
   modalOverlay: {
     flex: 1,
@@ -357,6 +413,11 @@ const styles = StyleSheet.create({
     padding: 16,
     width: '80%',
     maxWidth: 300,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
   },
   modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#1F2937', marginBottom: 16 },
   input: {
@@ -382,6 +443,7 @@ const styles = StyleSheet.create({
     borderColor: '#fecaca',
     borderRadius: 16,
     padding: 16,
+    marginBottom: 24, // Added margin-bottom for spacing
   },
   alertHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   alertDot: { width: 8, height: 8, backgroundColor: '#ef4444', borderRadius: 4 },
@@ -391,6 +453,8 @@ const styles = StyleSheet.create({
 
 export default HomeScreen;
 
-function alert(_arg0: string) {
-  throw new Error('Function not implemented.');
-}
+// Cette fonction 'alert' n'est pas nécessaire et peut être supprimée si vous utilisez
+// des modales personnalisées ou console.warn pour les messages d'alerte.
+// function alert(_arg0: string) {
+//   throw new Error('Function not implemented.');
+// }

@@ -40,6 +40,7 @@ export type RootStackParamList = {
   AddStock: undefined;
   EditStock: { item: { name: string; quantity: string; expiry: string; status: 'good' | 'warning' | 'urgent' }; itemIndex: number }; 
   EditRecipe: { recipe: any };
+  MarketMap: undefined;
 };
 
 // Type pour les props des écrans du Tab Navigator
@@ -66,7 +67,6 @@ const MainTabs = () => (
         else if (route.name === 'Recipes') {iconName = 'chef-hat';}
         else if (route.name === 'Shopping') {iconName = 'cart-outline';}
         else if (route.name === 'Stock') {iconName = 'package-variant-closed';}
-        else if (route.name === 'MarketMap') {iconName = 'store';}
         else if (route.name === 'Profile') {iconName = 'account';}
         return <MaterialCommunityIcons name={iconName} size={size} color={color} />;
       },
@@ -79,7 +79,6 @@ const MainTabs = () => (
     <Tab.Screen name="Recipes" component={RecipesScreen} />
     <Tab.Screen name="Shopping" component={ShoppingScreen} />
     <Tab.Screen name="Stock" component={StockScreen} />
-    <Tab.Screen name="MarketMap" component={MarketMapScreen} />
     <Tab.Screen name="Profile" component={ProfileScreen} />
   </Tab.Navigator>
 );
@@ -144,11 +143,12 @@ const AppNavigator: React.FC = () => {
           component={EditRecipeScreen}
           options={{ headerShown: false }}
         />
-      </Stack.Navigator>
-      <Stack.Screen 
-      name="MarketMap" 
-      component={MarketMapScreen} 
-      options={{ headerShown: false }} />
+        <Stack.Screen 
+          name="MarketMap" 
+          component={MarketMapScreen} 
+          options={{ headerShown: false }} />
+        </Stack.Navigator>
+      
 
     </NavigationContainer>
   );

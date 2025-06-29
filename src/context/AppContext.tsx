@@ -2,45 +2,37 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { auth, db } from '../services/firebase';
 import { doc, onSnapshot } from '@react-native-firebase/firestore';
 import { onAuthStateChanged } from '@react-native-firebase/auth';
+// Assurez-vous d'avoir toutes ces interfaces dans types.ts
+import { ShoppingListEntry, ShoppingItem, StockItem, Recipe, FamilyMember, FamilyProfile } from './types'; // Importez toutes les interfaces de types.ts
 
-interface FamilyMember {
-  name: string;
-  age: number;
-  activity: string;
-  preferences: string[];
-}
+// Déplacez ces interfaces dans types.ts si elles ne le sont pas déjà
+// interface FamilyMember {
+//   name: string;
+//   age: number;
+//   activity: string;
+//   preferences: string[];
+// }
 
-interface FamilyProfile {
-  name: string;
-  members: FamilyMember[];
-}
+// interface FamilyProfile {
+//   name: string;
+//   members: FamilyMember[];
+// }
 
-interface Recipe {
-  id: number;
-  name: string;
-  time: string;
-  difficulty: string;
-  image?: string;
-  calories: number;
-  ingredients: string[];
-  isPersonal: boolean;
-  budget: number;
-  availableIngredients: number;
-  creator?: string;
-}
+// interface Recipe {
+//   id: number;
+//   name: string;
+//   time: string;
+//   difficulty: string;
+//   image?: string;
+//   calories: number;
+//   ingredients: string[];
+//   isPersonal: boolean;
+//   budget: number;
+//   availableIngredients: number;
+//   creator?: string;
+// }
 
-interface ShoppingItem {
-  item: string;
-  bought: boolean;
-  category: string;
-}
-
-interface StockItem {
-  name: string;
-  quantity: string;
-  expiry: string;
-  status: 'good' | 'warning' | 'urgent';
-}
+// StockItem est déjà dans types.ts
 
 interface AISuggestion {
   name: string;
@@ -55,8 +47,10 @@ interface AppContextType {
   familyProfile: FamilyProfile;
   recipes: Recipe[];
   setRecipes: React.Dispatch<React.SetStateAction<Recipe[]>>;
-  shoppingList: ShoppingItem[];
-  setShoppingList: React.Dispatch<React.SetStateAction<ShoppingItem[]>>;
+  shoppingLists: ShoppingListEntry[];
+  addShoppingList: (name: string, items: ShoppingItem[], date?: string) => void;
+  updateShoppingItem: (listId: string, itemId: string, updates: Partial<ShoppingItem>) => void;
+  removeShoppingList: (listId: string) => void; // <--- NOUVELLE FONCTION AJOUTÉE ICI
   stock: StockItem[];
   setStock: React.Dispatch<React.SetStateAction<StockItem[]>>;
   aiSuggestions: AISuggestion[];
@@ -82,6 +76,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       isPersonal: false,
       budget: 8.50,
       availableIngredients: 3,
+      servings: 4, // Added missing property for consistency with types.ts Recipe
     },
     {
       id: 2,
@@ -94,6 +89,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       isPersonal: false,
       budget: 6.20,
       availableIngredients: 2,
+      servings: 2, // Added missing property
     },
     {
       id: 3,
@@ -106,6 +102,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       isPersonal: false,
       budget: 12.80,
       availableIngredients: 4,
+      servings: 2, // Added missing property
     },
     {
       id: 4,
@@ -129,6 +126,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       budget: 9.00,
       availableIngredients: 4,
       creator: 'Famille',
+      servings: 4, // Added missing property
     },
     {
       id: 5,
@@ -152,6 +150,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       budget: 10.00,
       availableIngredients: 3,
       creator: 'Famille',
+      servings: 4, // Added missing property
     },
     {
       id: 6,
@@ -172,16 +171,62 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       budget: 7.50,
       availableIngredients: 2,
       creator: 'Famille',
+      servings: 4, // Added missing property
     },
   ]);
 
-  const [shoppingList, setShoppingList] = useState<ShoppingItem[]>([
-    { item: 'Pâtes (500g)', bought: false, category: 'Féculents' },
-    { item: 'Lardons (200g)', bought: true, category: 'Viande' },
-    { item: 'Œufs (6 pièces)', bought: false, category: 'Frais' },
-    { item: 'Parmesan (100g)', bought: false, category: 'Fromage' },
-    { item: 'Salade verte', bought: true, category: 'Légumes' },
+  // Nouvelle gestion des listes de courses avec les nouvelles propriétés d'ShoppingItem
+  const [shoppingLists, setShoppingLists] = useState<ShoppingListEntry[]>([
+    {
+      id: 'list-semaine-1',
+      name: 'Liste de la Semaine 1',
+      date: 'Semaine 1',
+      items: [
+        { id: 'item-1-pates', item: 'Pâtes', bought: false, category: 'Féculents', quantity: 0.5, unit: 'kg', unitPrice: 3.00, priceEstimate: 1.50 },
+        { id: 'item-1-lardons', item: 'Lardons', bought: true, category: 'Viande', quantity: 0.2, unit: 'kg', unitPrice: 15.00, priceEstimate: 3.00 },
+        { id: 'item-1-oeufs', item: 'Œufs', bought: false, category: 'Frais', quantity: 6, unit: 'pièces', unitPrice: 0.33, priceEstimate: 2.00 },
+        { id: 'item-1-parmesan', item: 'Parmesan', bought: false, category: 'Fromage', quantity: 0.1, unit: 'kg', unitPrice: 40.00, priceEstimate: 4.00 },
+      ],
+    },
+    {
+      id: 'list-lundi',
+      name: 'Course du Lundi',
+      date: 'Lundi 24 Juin',
+      items: [
+        { id: 'item-2-salade', item: 'Salade verte', bought: true, category: 'Légumes', quantity: 1, unit: 'unité', unitPrice: 1.20, priceEstimate: 1.20 },
+        { id: 'item-2-poulet', item: 'Poulet', bought: false, category: 'Viande', quantity: 1, unit: 'kg', unitPrice: 6.00, priceEstimate: 6.00 },
+        { id: 'item-2-lait', item: 'Lait', bought: false, category: 'Frais', quantity: 1, unit: 'litre', unitPrice: 1.00, priceEstimate: 1.00 },
+      ],
+    },
   ]);
+
+  // Fonction pour ajouter une nouvelle liste de courses
+  const addShoppingList = (name: string, items: ShoppingItem[], date?: string) => {
+    const newId = `list-${Date.now()}`; // Générer un ID unique
+    setShoppingLists((prevLists) => [...prevLists, { id: newId, name, items, date }]);
+  };
+
+  // Fonction pour mettre à jour un article dans une liste de courses spécifique
+  const updateShoppingItem = (listId: string, itemId: string, updates: Partial<ShoppingItem>) => {
+    setShoppingLists((prevLists) =>
+      prevLists.map((list) =>
+        list.id === listId
+          ? {
+              ...list,
+              items: list.items.map((item) =>
+                item.id === itemId ? { ...item, ...updates } : item
+              ),
+            }
+          : list
+      )
+    );
+  };
+
+  // <--- NOUVELLE FONCTION DE SUPPRESSION DE LISTE AJOUTÉE ICI --->
+  const removeShoppingList = (listId: string) => {
+    setShoppingLists((prevLists) => prevLists.filter((list) => list.id !== listId));
+  };
+  // <--------------------------------------------------------------->
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
@@ -226,25 +271,26 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const [stock, setStock] = useState<StockItem[]>([
-    { name: 'Riz', quantity: '2 kg', expiry: '2025-08-15', status: 'good' },
-    { name: 'Huile d’olive', quantity: '500ml', expiry: '2025-12-20', status: 'good' },
-    { name: 'Lait', quantity: '1L', expiry: '2025-05-30', status: 'warning' },
-    { name: 'Yaourts', quantity: '8 pots', expiry: '2025-05-26', status: 'urgent' },
-    { name: 'Pommes de terre', quantity: '1.5 kg', expiry: '2025-06-10', status: 'good' },
-    { name: 'Fromage râpé', quantity: '200g', expiry: '2025-06-05', status: 'good' },
-    { name: 'Œufs', quantity: '6 pièces', expiry: '2025-06-01', status: 'good' },
-    { name: 'Pâtes', quantity: '500g', expiry: '2025-10-15', status: 'good' },
-    { name: 'Ndolé', quantity: '1 kg', expiry: '2025-07-01', status: 'good' },
-    { name: 'Plantains', quantity: '6', expiry: '2025-06-15', status: 'good' },
-    { name: 'Arachides', quantity: '400g', expiry: '2025-08-01', status: 'good' },
-    { name: 'Poisson fumé', quantity: '400g', expiry: '2025-06-10', status: 'good' },
-    { name: 'Huile de palme', quantity: '250ml', expiry: '2025-09-01', status: 'good' },
-    { name: 'Oignons', quantity: '5', expiry: '2025-06-20', status: 'good' },
-    { name: 'Ail', quantity: '6 gousses', expiry: '2025-06-25', status: 'good' },
-    { name: 'Haricots Koki', quantity: '1 kg', expiry: '2025-07-15', status: 'good' },
-    { name: 'Feuilles de bananier', quantity: '10', expiry: '2025-06-30', status: 'good' },
-    { name: 'Piment', quantity: '100g', expiry: '2025-06-18', status: 'good' },
+    { id: 'stock-riz', name: 'Riz', quantity: 2, unit: 'kg', expiryDate: '2025-08-15', status: 'good', category: 'Féculents' }, // Updated to match StockItem in types.ts
+    { id: 'stock-huile', name: 'Huile d’olive', quantity: 0.5, unit: 'litre', expiryDate: '2025-12-20', status: 'good', category: 'Autres' }, // Updated
+    { id: 'stock-lait', name: 'Lait', quantity: 1, unit: 'litre', expiryDate: '2025-05-30', status: 'warning', category: 'Produits Laitiers' }, // Updated
+    { id: 'stock-yaourts', name: 'Yaourts', quantity: 8, unit: 'pots', expiryDate: '2025-05-26', status: 'urgent', category: 'Produits Laitiers' }, // Updated
+    { id: 'stock-pommes-terre', name: 'Pommes de terre', quantity: 1.5, unit: 'kg', expiryDate: '2025-06-10', status: 'good', category: 'Légumes' }, // Updated
+    { id: 'stock-fromage', name: 'Fromage râpé', quantity: 0.2, unit: 'kg', expiryDate: '2025-06-05', status: 'good', category: 'Fromage' }, // Updated
+    { id: 'stock-oeufs', name: 'Œufs', quantity: 6, unit: 'pièces', expiryDate: '2025-06-01', status: 'good', category: 'Frais' }, // Updated
+    { id: 'stock-pates', name: 'Pâtes', quantity: 0.5, unit: 'kg', expiryDate: '2025-10-15', status: 'good', category: 'Féculents' }, // Updated
+    { id: 'stock-ndole', name: 'Ndolé', quantity: 1, unit: 'kg', expiryDate: '2025-07-01', status: 'good', category: 'Légumes' }, // Updated
+    { id: 'stock-plantains', name: 'Plantains', quantity: 6, unit: 'unité', expiryDate: '2025-06-15', status: 'good', category: 'Féculents' }, // Updated
+    { id: 'stock-arachides', name: 'Arachides', quantity: 0.4, unit: 'kg', expiryDate: '2025-08-01', status: 'good', category: 'Légumineuses' }, // Updated
+    { id: 'stock-poisson-fume', name: 'Poisson fumé', quantity: 0.4, unit: 'kg', expiryDate: '2025-06-10', status: 'good', category: 'Viande' }, // Updated
+    { id: 'stock-huile-palme', name: 'Huile de palme', quantity: 0.25, unit: 'litre', expiryDate: '2025-09-01', status: 'good', category: 'Autres' }, // Updated
+    { id: 'stock-oignons', name: 'Oignons', quantity: 5, unit: 'unité', expiryDate: '2025-06-20', status: 'good', category: 'Légumes' }, // Updated
+    { id: 'stock-ail', name: 'Ail', quantity: 6, unit: 'gousses', expiryDate: '2025-06-25', status: 'good', category: 'Légumes' }, // Updated
+    { id: 'stock-haricots-koki', name: 'Haricots Koki', quantity: 1, unit: 'kg', expiryDate: '2025-07-15', status: 'good', category: 'Légumineuses' }, // Updated
+    { id: 'stock-feuilles-bananier', name: 'Feuilles de bananier', quantity: 10, unit: 'unité', expiryDate: '2025-06-30', status: 'good', category: 'Autres' }, // Updated
+    { id: 'stock-piment', name: 'Piment', quantity: 0.1, unit: 'kg', expiryDate: '2025-06-18', status: 'good', category: 'Autres' }, // Updated
   ]);
+
 
   const [aiSuggestions] = useState<AISuggestion[]>([
     {
@@ -275,7 +321,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <AppContext.Provider
-      value={{ familyProfile, recipes, setRecipes, shoppingList, setShoppingList, stock, setStock, aiSuggestions }}
+      value={{
+        familyProfile,
+        recipes,
+        setRecipes,
+        shoppingLists,
+        addShoppingList,
+        updateShoppingItem,
+        removeShoppingList, // <--- AJOUTÉE ICI
+        stock,
+        setStock,
+        aiSuggestions,
+      }}
     >
       {children}
     </AppContext.Provider>
