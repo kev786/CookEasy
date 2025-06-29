@@ -116,7 +116,7 @@ const RecipeDetailPage: React.FC<Props> = ({ route, navigation }) => {
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
-          {recipe.image && recipe.image.startsWith('http') ? ( // Vérifier si l'URI est valide
+          {recipe.image ? (
             <Image
               source={{ uri: recipe.image }}
               style={styles.headerImage}

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, Alert, Image } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -6,11 +5,10 @@ import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
 import { db } from '../services/firebase';
-import { collection, onSnapshot, doc, deleteDoc } from '@react-native-firebase/firestore';
+import { collection, onSnapshot, doc, deleteDoc, getDocs } from '@react-native-firebase/firestore';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Recipes'>;
 
-// Nouvelle interface pour un ingrédient, correspondant à la structure de sauvegarde
 interface Ingredient {
   name: string;
   quantity: number;
@@ -18,16 +16,16 @@ interface Ingredient {
   available: boolean;
 }
 
-// Mise à jour de l'interface Recipe pour refléter la nouvelle structure des ingrédients et nutrition
 interface Recipe {
   id: string;
   name: string;
   time: string;
   difficulty: string;
   image?: string;
-  servings?: number; // Ajouté car il est maintenant sauvegardé
-  ingredients: Ingredient[]; // Changé de string[] à Ingredient[]
-  nutrition?: { // Ajouté car il est maintenant sauvegardé
+  imageUrl?: string; // Pour les plats de la BD
+  servings?: number;
+  ingredients: Ingredient[];
+  nutrition?: {
     calories: number;
     proteins: number;
     carbs: number;
@@ -35,52 +33,84 @@ interface Recipe {
   };
   budget: number;
   isPersonal: boolean;
-  availableIngredients: number; // Toujours pertinent
+  availableIngredients: number;
   creator?: string;
-  rating?: number; // Ajouté
-  reviews?: number; // Ajouté
-  description?: string; // Ajouté
-  tips?: string[]; // Ajouté
-  steps?: { // Ajouté
+  rating?: number;
+  reviews?: number;
+  description?: string;
+  tips?: string[];
+  steps?: {
     title: string;
     instruction: string;
     time?: string;
     image?: string;
   }[];
+  // Champs spécifiques aux plats de la BD
+  nom_plat?: string;
+  Description?: string;
+  origine?: string;
 }
 
 const RecipesScreen: React.FC<Props> = ({ navigation }) => {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [plats, setPlats] = useState<Recipe[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredRecipes, setFilteredRecipes] = useState<Recipe[]>([]);
 
+  // Charger les recettes personnelles
   useEffect(() => {
-    // Écoute les changements dans la collection 'recipes'
     const unsubscribe = onSnapshot(collection(db, 'recipes'), (querySnapshot) => {
       const recipesList: Recipe[] = [];
       querySnapshot.forEach((docSnap) => {
-        // Cast des données pour correspondre à l'interface Recipe
         const data = docSnap.data();
         recipesList.push({ id: docSnap.id, ...data } as Recipe);
       });
       setRecipes(recipesList);
-      setFilteredRecipes(recipesList);
     });
-
-    // Nettoyage de l'écouteur lors du démontage du composant
     return () => unsubscribe();
   }, []);
 
+  // Charger les plats de la BD (collection 'plat')
   useEffect(() => {
+    const fetchPlats = async () => {
+      const querySnapshot = await getDocs(collection(db, 'plat'));
+      const platsList: Recipe[] = [];
+      querySnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        platsList.push({
+          id: docSnap.id,
+          name: data.nom_plat || 'Plat inconnu',
+          time: data.time || '',
+          difficulty: data.difficulty || 'N/A',
+          imageUrl: data.imageUrl,
+          ingredients: [],
+          budget: data.budget || 0,
+          isPersonal: false,
+          availableIngredients: 0,
+          creator: 'BD',
+          nutrition: { calories: data.calories || 0, proteins: 0, carbs: 0, fats: 0 },
+          description: data.Description,
+          nom_plat: data.nom_plat,
+          origine: data.origine,
+        });
+      });
+      setPlats(platsList);
+    };
+    fetchPlats();
+  }, []);
+
+  // Fusionner et filtrer les deux listes
+  useEffect(() => {
+    const allRecipes = [...recipes, ...plats];
     if (searchQuery.trim() === '') {
-      setFilteredRecipes(recipes);
+      setFilteredRecipes(allRecipes);
     } else {
-      const filtered = recipes.filter((recipe) =>
-        recipe.name.toLowerCase().includes(searchQuery.toLowerCase())
+      const filtered = allRecipes.filter((recipe) =>
+        (recipe.name || '').toLowerCase().includes(searchQuery.toLowerCase())
       );
       setFilteredRecipes(filtered);
     }
-  }, [searchQuery, recipes]);
+  }, [searchQuery, recipes, plats]);
 
   const addToShoppingList = (recipeId: string) => {
     Alert.alert('Info', `Ajouter les ingrédients de la recette ${recipeId} à la liste de courses (à implémenter).`);
@@ -91,11 +121,18 @@ const RecipesScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const handleEditRecipe = (recipe: Recipe) => {
-    // MODIFICATION ICI : Navigue vers le nouvel écran EditRecipe
-    navigation.navigate('AddRecipe', { recipe }); // Utilise AddRecipe pour l'édition
+    if (recipe.isPersonal) {
+      navigation.navigate('AddRecipe', { recipe });
+    } else {
+      Alert.alert('Info', 'Vous ne pouvez pas modifier un plat de la base de données.');
+    }
   };
 
-  const handleDeleteRecipe = (recipeId: string, recipeName: string) => {
+  const handleDeleteRecipe = (recipeId: string, recipeName: string, isPersonal: boolean) => {
+    if (!isPersonal) {
+      Alert.alert('Info', 'Vous ne pouvez pas supprimer un plat de la base de données.');
+      return;
+    }
     Alert.alert(
       'Confirmer la suppression',
       `Êtes-vous sûr de vouloir supprimer la recette "${recipeName}" ?`,
@@ -184,11 +221,12 @@ const RecipesScreen: React.FC<Props> = ({ navigation }) => {
                   onPress={() => handleRecipePress(item)}
                 >
                   <View style={styles.recipeContent}>
-                    {item.image && item.image.startsWith('http') ? ( // Vérifier si l'URI est valide
+                    {(item.image || item.imageUrl) ? (
                       <Image
-                        source={{ uri: item.image }}
+                        source={{ uri: item.image || item.imageUrl }}
                         style={styles.recipeImage}
                         resizeMode="cover"
+                        onError={(e) => console.log(`Erreur chargement image pour ${item.id}:`, e.nativeEvent.error)}
                       />
                     ) : (
                       <Text style={styles.recipeEmoji}>🍳</Text>
@@ -199,8 +237,8 @@ const RecipesScreen: React.FC<Props> = ({ navigation }) => {
                         <Text style={styles.creatorText}>Créé par {item.creator}</Text>
                       )}
                       <View style={styles.recipeInfo}>
-                        <Text style={styles.infoText}>⏱️ {item.time}</Text>
-                        <Text style={styles.infoText}>📈 {item.difficulty}</Text>
+                        <Text style={styles.infoText}>⏱️ {item.time || 'N/A'}</Text>
+                        <Text style={styles.infoText}>📈 {item.difficulty || 'N/A'}</Text>
                         <Text style={styles.infoText}>🔥 {item.nutrition?.calories || 0} cal</Text>
                       </View>
                       <View style={styles.recipeStats}>
@@ -212,7 +250,6 @@ const RecipesScreen: React.FC<Props> = ({ navigation }) => {
                       <View style={styles.ingredientsList}>
                         {item.ingredients?.slice(0, 3).map((ingredient: Ingredient, idx: number) => (
                           <View key={idx} style={styles.ingredientTag}>
-                            {/* Afficher le nom de l'ingrédient */}
                             <Text style={styles.ingredientText}>{ingredient.name}</Text>
                           </View>
                         ))}
@@ -222,6 +259,13 @@ const RecipesScreen: React.FC<Props> = ({ navigation }) => {
                           </View>
                         )}
                       </View>
+                      {/* Affichage de la description et de l'origine pour les plats de la BD */}
+                      {!item.isPersonal && (
+                        <>
+                          <Text style={styles.infoText}>{item.description}</Text>
+                          <Text style={styles.infoText}>Origine : {item.origine || 'Inconnue'}</Text>
+                        </>
+                      )}
                     </View>
                   </View>
                 </TouchableOpacity>
@@ -234,7 +278,7 @@ const RecipesScreen: React.FC<Props> = ({ navigation }) => {
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.actionButtonCircle}
-                    onPress={() => handleDeleteRecipe(item.id, item.name)}
+                    onPress={() => handleDeleteRecipe(item.id, item.name, item.isPersonal)}
                   >
                     <MaterialCommunityIcons name="trash-can-outline" size={20} color="#ef4444" />
                   </TouchableOpacity>
@@ -256,6 +300,7 @@ const RecipesScreen: React.FC<Props> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
+  // ...styles identiques à ta version précédente...
   container: { flex: 1, backgroundColor: '#F3F4F6' },
   header: { paddingTop: 48, paddingBottom: 16, paddingHorizontal: 16 },
   headerContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -312,7 +357,7 @@ const styles = StyleSheet.create({
   personalBadge: {
     position: 'absolute',
     top: 0,
-    right: 12, // Positionné à 12px du bord droit
+    right: 12,
     backgroundColor: '#ffedd5',
     paddingVertical: 4,
     paddingHorizontal: 8,
@@ -333,14 +378,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginRight: 16,
   },
-  recipeEmoji: { // Style pour l'emoji si pas d'image
+  recipeEmoji: {
     fontSize: 32,
     width: 60,
     height: 60,
     borderRadius: 12,
     marginRight: 16,
     textAlign: 'center',
-    textAlignVertical: 'center', // Centrer verticalement pour Android
+    textAlignVertical: 'center',
     backgroundColor: '#E5E7EB',
   },
   recipeDetails: { flex: 1 },

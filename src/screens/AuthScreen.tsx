@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Animated,
-  Alert, // Gardé pour les messages d'erreur/succès
+  Alert,
   Platform,
   Modal,
   ScrollView,
@@ -16,20 +16,11 @@ import {
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { auth, db } from '../services/firebase'; // Importer directement auth et db
-import { doc, setDoc } from '@react-native-firebase/firestore'; // setDoc est réimporté
+import { auth, db } from '../services/firebase';
+import { doc, setDoc } from '@react-native-firebase/firestore';
+import { RootStackParamList } from '../types';
 
-export type RootStackParamList = {
-  Splash: undefined;
-  Auth: undefined;
-  Main: undefined; // Ajouté pour correspondre à AppNavigator
-  Recipes: undefined;
-  Profile: undefined;
-  Home: undefined;
-  RecipeDetail: { recipe: any };
-  AddRecipe: {};
-  EditRecipe: { recipe: any };
-};
+
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Auth'>;
 
@@ -40,8 +31,8 @@ interface FormData {
   email: string;
   password: string;
   confirmPassword: string;
-  familySize: string;
-  weeklyBudget: string;
+  familySize: string; // Conservé dans l'interface mais non utilisé
+  weeklyBudget: string; // Conservé dans l'interface mais non utilisé
 }
 
 const AuthScreen: React.FC<Props> = ({ navigation }) => {
@@ -55,8 +46,8 @@ const AuthScreen: React.FC<Props> = ({ navigation }) => {
     email: '',
     password: '',
     confirmPassword: '',
-    familySize: '3',
-    weeklyBudget: '150',
+    familySize: '3', // Valeur par défaut non utilisée
+    weeklyBudget: '150', // Valeur par défaut non utilisée
   });
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -104,16 +95,12 @@ const AuthScreen: React.FC<Props> = ({ navigation }) => {
         Alert.alert('Erreur', 'Veuillez entrer un numéro de téléphone valide.');
         return false;
       }
-      if (!formData.weeklyBudget || parseInt(formData.weeklyBudget, 10) <= 0) {
-        Alert.alert('Erreur', 'Veuillez entrer un budget hebdomadaire valide.');
-        return false;
-      }
     }
     return true;
   };
 
   const handleSubmit = async () => {
-    if (!validateForm()) { return; }
+    if (!validateForm()) {return;}
 
     Animated.sequence([
       Animated.timing(scaleAnim, {
@@ -134,7 +121,7 @@ const AuthScreen: React.FC<Props> = ({ navigation }) => {
         await auth.signInWithEmailAndPassword(formData.email, formData.password);
         console.log('Connexion réussie');
         Alert.alert('Succès', 'Connexion réussie !');
-        navigation.replace('Main'); // Redirige vers Main (premier onglet: Home)
+        navigation.replace('Main');
       } else {
         console.log('Tentative de création de compte avec:', formData.email);
         const userCredential = await auth.createUserWithEmailAndPassword(
@@ -149,35 +136,23 @@ const AuthScreen: React.FC<Props> = ({ navigation }) => {
               displayName: `${formData.firstName} ${formData.lastName}`,
             });
             console.log('Profil Firebase Auth mis à jour avec succès');
-            // Nous n'affichons plus d'alerte ici pour ne pas bloquer le flux principal
           } catch (profileError: any) {
             console.error('Erreur lors de la mise à jour du profil Firebase Auth:', profileError.message);
-            // L'alerte pour l'échec de la mise à jour du profil est conservée pour information
             Alert.alert('Avertissement', `Compte créé, mais échec de la mise à jour du profil d'affichage: ${profileError.message}`);
           }
 
-          // ---------- DÉBUT : BLOC setDoc RÉACTIVÉ SANS AWAIT ----------
-          setDoc(doc(db, 'users', user.uid), { // PLUS DE 'AWAIT' ICI
+          setDoc(doc(db, 'users', user.uid), {
             firstName: formData.firstName,
             lastName: formData.lastName,
             phone: formData.phone || '',
-            familySize: parseInt(formData.familySize, 10),
-            weeklyBudget: parseInt(formData.weeklyBudget, 10),
             createdAt: new Date(),
-          })
-          .then(() => {
-            console.log('Données utilisateur enregistrées dans Firestore (en arrière-plan)');
-            // Pas d'Alert.alert ici pour ne pas bloquer l'UI et permettre la redirection immédiate
-          })
-          .catch((firestoreError: any) => {
-            console.error('Erreur lors de l\'enregistrement des données utilisateur dans Firestore (en arrière-plan):', firestoreError.message);
-            // Pas d'Alert.alert ici non plus, l'erreur est loggée dans la console
+          }).catch((firestoreError: any) => {
+            console.error('Erreur lors de l\'enregistrement dans Firestore:', firestoreError.message);
           });
-          // ---------- FIN : BLOC setDoc RÉACTIVÉ SANS AWAIT ----------
 
           console.log('Inscription terminée, navigation vers Main');
-          Alert.alert('Succès', 'Inscription réussie ! Redirection...'); // Cette alerte est pour le succès global
-          navigation.replace('Main'); // Redirige directement vers Main après inscription
+          Alert.alert('Succès', 'Inscription réussie ! Redirection...');
+          navigation.replace('Main');
         } else {
           console.error('Erreur: Aucun utilisateur retourné après la création du compte.');
           Alert.alert('Erreur', 'Échec de la création du compte: utilisateur non trouvé.');
@@ -226,7 +201,6 @@ const AuthScreen: React.FC<Props> = ({ navigation }) => {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
         <LinearGradient colors={['#f97316', '#ef4444']} style={styles.header}>
           <View style={styles.logoContainer}>
             <View style={styles.logoCircle}>
@@ -237,7 +211,6 @@ const AuthScreen: React.FC<Props> = ({ navigation }) => {
           </View>
         </LinearGradient>
 
-        {/* Carte blanche */}
         <Animated.View
           style={[
             styles.card,
@@ -411,51 +384,6 @@ const AuthScreen: React.FC<Props> = ({ navigation }) => {
               </View>
             )}
 
-            {!isLogin && (
-              <View style={styles.row}>
-                <View style={[styles.inputContainer, styles.halfWidth]}>
-                  <Text style={styles.label}>Taille famille</Text>
-                  <View style={styles.inputWrapper}>
-                    <MaterialCommunityIcons
-                      name="account-group"
-                      size={20}
-                      color="#9CA3AF"
-                      style={styles.inputIcon}
-                    />
-                    <TouchableOpacity
-                      style={styles.modalButton}
-                      onPress={() => setShowFamilySizeModal(true)}
-                    >
-                      <Text style={styles.modalText}>
-                        {familySizeOptions.find(opt => opt.value === formData.familySize)?.label}
-                      </Text>
-                      <MaterialCommunityIcons name="chevron-down" size={20} color="#9CA3AF" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                <View style={[styles.inputContainer, styles.halfWidth]}>
-                  <Text style={styles.label}>Budget/semaine</Text>
-                  <View style={styles.inputWrapper}>
-                    <MaterialCommunityIcons
-                      name="currency-eur"
-                      size={20}
-                      color="#9CA3AF"
-                      style={styles.inputIcon}
-                    />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="150"
-                      placeholderTextColor="#9CA3AF"
-                      value={formData.weeklyBudget}
-                      onChangeText={value => handleInputChange('weeklyBudget', value)}
-                      keyboardType="numeric"
-                    />
-                  </View>
-                </View>
-              </View>
-            )}
-
             {isLogin && (
               <TouchableOpacity onPress={handleForgotPassword}>
                 <Text style={styles.forgotPasswordText}>Mot de passe oublié ?</Text>
@@ -503,7 +431,6 @@ const AuthScreen: React.FC<Props> = ({ navigation }) => {
           </TouchableOpacity>
         </Animated.View>
 
-        {/* Avantages */}
         <View style={styles.benefitsCard}>
           <Text style={styles.benefitsTitle}>🎯 Pourquoi CuisineAI ?</Text>
           <View style={styles.benefitsList}>
@@ -535,7 +462,6 @@ const AuthScreen: React.FC<Props> = ({ navigation }) => {
         </View>
       </ScrollView>
 
-      {/* Modal pour la taille de famille */}
       <Modal visible={showFamilySizeModal} transparent animationType="fade">
         <TouchableOpacity
           style={styles.modalOverlay}
@@ -618,9 +544,6 @@ const styles = StyleSheet.create({
   slogan: {
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.9)',
-  },
-  scrollContainer: {
-    flex: 1,
   },
   card: {
     backgroundColor: '#fff',

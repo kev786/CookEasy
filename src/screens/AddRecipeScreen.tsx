@@ -1,8 +1,4 @@
-/* eslint-disable react-native/no-inline-styles */
-/* eslint-disable no-catch-shadow */
-/* eslint-disable @typescript-eslint/no-shadow */
-/* eslint-disable radix */
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,

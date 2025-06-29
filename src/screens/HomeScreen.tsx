@@ -1,13 +1,30 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Modal } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Modal, Image, Alert } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
 import { useAppContext } from '../context/AppContext';
 import { auth } from '../services/firebase';
+import { db } from '../services/firebase';
+import { collection, getDocs } from '@react-native-firebase/firestore';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
+
+interface Plat {
+  id: string;
+  nom_plat?: string;
+  Description?: string;
+  autre_nom?: string;
+  code_plat?: string;
+  origine?: string;
+  chemin?: string;
+  code?: string;
+  imageUrl?: string;
+  type?: string;
+  time?: string;
+  calories?: number;
+}
 
 const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const { familyProfile, recipes, setRecipes, shoppingList, stock } = useAppContext();
@@ -34,6 +51,52 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     creator: userName,
   });
 
+  // État pour les plats recommandés et tous les plats
+  const [recommendedPlats, setRecommendedPlats] = useState<Plat[]>([]);
+  const [sectionTitle, setSectionTitle] = useState('🎯 Recommandé pour votre famille');
+  const allPlatsRef = useRef<Plat[]>([]);
+  const [, setCurrentIndex] = useState(0);
+
+  // Charger les plats depuis Firestore
+  const fetchPlats = async (): Promise<Plat[]> => {
+    try {
+      const querySnapshot = await getDocs(collection(db, 'plat'));
+      const platsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Plat[];
+      return platsData;
+    } catch (error) {
+      console.error('Erreur lors du chargement des plats :', error);
+      return [];
+    }
+  };
+
+  // Charger les plats au montage et gérer le changement périodique
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+
+    const loadPlats = async () => {
+      const allPlats = await fetchPlats();
+      if (allPlats.length > 0) {
+        allPlatsRef.current = allPlats;
+        setRecommendedPlats(allPlats.slice(0, 2));
+        setSectionTitle('🎯 Recommandé pour votre famille');
+        setCurrentIndex(0);
+
+        intervalId = setInterval(() => {
+          setCurrentIndex(prev => {
+            const nextIndex = prev + 2 >= allPlatsRef.current.length ? 0 : prev + 2;
+            setRecommendedPlats(allPlatsRef.current.slice(nextIndex, nextIndex + 2));
+            setSectionTitle('🎯 Plats disponibles');
+            return nextIndex;
+          });
+        }, 30000);
+      }
+    };
+
+    loadPlats();
+
+    return () => clearInterval(intervalId);
+  }, []);
+
   const handleAddRecipe = () => {
     if (newRecipe.name && newRecipe.time && newRecipe.difficulty && newRecipe.calories && newRecipe.budget) {
       setRecipes([...recipes, newRecipe]);
@@ -52,7 +115,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         creator: userName,
       });
     } else {
-      alert('Veuillez remplir tous les champs principaux.');
+      Alert.alert('Erreur', 'Veuillez remplir tous les champs principaux.');
     }
   };
 
@@ -152,35 +215,37 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           <MaterialCommunityIcons name="plus" size={24} color="#fff" />
         </TouchableOpacity>
 
-        {/* Recettes recommandées */}
+        {/* Section des plats recommandés/disponibles */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🎯 Recommandé pour votre famille</Text>
-          <View style={styles.recipeCard}>
-            <Text style={styles.recipeImage}>🍚</Text>
-            <View style={styles.recipeInfo}>
-              <Text style={styles.recipeName}>Riz Sauce Arachide</Text>
-              <View style={styles.recipeDetails}>
-                <Text style={styles.detailText}>⏱️ 1h</Text>
-                <Text style={styles.detailText}>🔥 600 cal</Text>
+          <Text style={styles.sectionTitle}>{sectionTitle}</Text>
+          {recommendedPlats.map((plat, index) => (
+            <View key={index} style={styles.recipeCard}>
+              <Image
+                source={{ uri: plat.imageUrl || 'https://via.placeholder.com/50' }}
+                style={styles.recipeImage}
+              />
+              <View style={styles.recipeInfo}>
+                <Text style={styles.recipeName}>{plat.nom_plat || 'Plat inconnu'}</Text>
+                <View style={styles.recipeDetails}>
+                  <Text style={styles.detailText}>
+                    ⏱️ {plat.time || (plat.Description ? `${Math.round(plat.Description.length / 10)} min` : 'N/A')}
+                  </Text>
+                  <Text style={styles.detailText}>
+                    🔥 {plat.calories || 0} cal
+                  </Text>
+                </View>
+                <Text style={styles.descriptionText}>
+                  {plat.Description || 'Aucune description'}
+                </Text>
+                <Text style={styles.originText}>
+                  Origine: {plat.origine || 'Inconnue'}
+                </Text>
               </View>
+              <TouchableOpacity style={styles.favoriteButton}>
+                <MaterialCommunityIcons name="heart-outline" size={20} color="#f97316" />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.favoriteButton}>
-              <MaterialCommunityIcons name="heart-outline" size={20} color="#f97316" />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.recipeCard}>
-            <Text style={styles.recipeImage}>🥗</Text>
-            <View style={styles.recipeInfo}>
-              <Text style={styles.recipeName}>Salade à l'Avocat</Text>
-              <View style={styles.recipeDetails}>
-                <Text style={styles.detailText}>⏱️ 20 min</Text>
-                <Text style={styles.detailText}>🔥 300 cal</Text>
-              </View>
-            </View>
-            <TouchableOpacity style={styles.favoriteButton}>
-              <MaterialCommunityIcons name="heart-outline" size={20} color="#f97316" />
-            </TouchableOpacity>
-          </View>
+          ))}
         </View>
 
         {/* Alertes stock */}
@@ -231,7 +296,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
               style={styles.input}
               placeholder="Calories"
               value={newRecipe.calories.toString()}
-              onChangeText={(text) => setNewRecipe({ ...newRecipe, calories: parseInt(text, 10) || 0 })} // Ajout de radix: 10
+              onChangeText={(text) => setNewRecipe({ ...newRecipe, calories: parseInt(text, 10) || 0 })}
               keyboardType="numeric"
             />
             <TextInput
@@ -252,6 +317,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
+  // ...styles identiques à ta version précédente...
   container: { flex: 1, backgroundColor: '#F3F4F6' },
   header: { paddingTop: 48, paddingBottom: 16, paddingHorizontal: 16 },
   headerContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -327,11 +393,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     elevation: 2,
   },
-  recipeImage: { fontSize: 40, marginRight: 16 },
+  recipeImage: { width: 50, height: 50, marginRight: 16, borderRadius: 8 },
   recipeInfo: { flex: 1 },
   recipeName: { fontSize: 16, fontWeight: '600', color: '#1F2937', marginBottom: 4 },
   recipeDetails: { flexDirection: 'row', gap: 12 },
   detailText: { fontSize: 14, color: '#6B7280' },
+  descriptionText: { fontSize: 12, color: '#6B7280', marginTop: 4 },
+  originText: { fontSize: 12, color: '#6B7280', fontStyle: 'italic' },
   favoriteButton: { padding: 8 },
   floatingButton: {
     position: 'absolute',
@@ -339,7 +407,7 @@ const styles = StyleSheet.create({
     right: 16,
     width: 56,
     height: 56,
-    backgroundColor: '#a855f7', // Déplacé du style en ligne
+    backgroundColor: '#a855f7',
     borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
@@ -390,7 +458,3 @@ const styles = StyleSheet.create({
 });
 
 export default HomeScreen;
-
-function alert(_arg0: string) {
-  throw new Error('Function not implemented.');
-}
