@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-shadow */
+
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, Alert, Image } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -10,18 +10,43 @@ import { collection, onSnapshot, doc, deleteDoc } from '@react-native-firebase/f
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Recipes'>;
 
+// Nouvelle interface pour un ingrédient, correspondant à la structure de sauvegarde
+interface Ingredient {
+  name: string;
+  quantity: number;
+  unit: string;
+  available: boolean;
+}
+
+// Mise à jour de l'interface Recipe pour refléter la nouvelle structure des ingrédients et nutrition
 interface Recipe {
   id: string;
   name: string;
   time: string;
   difficulty: string;
   image?: string;
-  calories: number;
-  ingredients: string[];
-  isPersonal: boolean;
+  servings?: number; // Ajouté car il est maintenant sauvegardé
+  ingredients: Ingredient[]; // Changé de string[] à Ingredient[]
+  nutrition?: { // Ajouté car il est maintenant sauvegardé
+    calories: number;
+    proteins: number;
+    carbs: number;
+    fats: number;
+  };
   budget: number;
-  availableIngredients: number;
+  isPersonal: boolean;
+  availableIngredients: number; // Toujours pertinent
   creator?: string;
+  rating?: number; // Ajouté
+  reviews?: number; // Ajouté
+  description?: string; // Ajouté
+  tips?: string[]; // Ajouté
+  steps?: { // Ajouté
+    title: string;
+    instruction: string;
+    time?: string;
+    image?: string;
+  }[];
 }
 
 const RecipesScreen: React.FC<Props> = ({ navigation }) => {
@@ -30,15 +55,19 @@ const RecipesScreen: React.FC<Props> = ({ navigation }) => {
   const [filteredRecipes, setFilteredRecipes] = useState<Recipe[]>([]);
 
   useEffect(() => {
+    // Écoute les changements dans la collection 'recipes'
     const unsubscribe = onSnapshot(collection(db, 'recipes'), (querySnapshot) => {
       const recipesList: Recipe[] = [];
-      querySnapshot.forEach((doc) => {
-        recipesList.push({ id: doc.id, ...doc.data() } as Recipe);
+      querySnapshot.forEach((docSnap) => {
+        // Cast des données pour correspondre à l'interface Recipe
+        const data = docSnap.data();
+        recipesList.push({ id: docSnap.id, ...data } as Recipe);
       });
       setRecipes(recipesList);
       setFilteredRecipes(recipesList);
     });
 
+    // Nettoyage de l'écouteur lors du démontage du composant
     return () => unsubscribe();
   }, []);
 
@@ -62,7 +91,8 @@ const RecipesScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const handleEditRecipe = (recipe: Recipe) => {
-    navigation.navigate('EditRecipe', { recipe });
+    // MODIFICATION ICI : Navigue vers le nouvel écran EditRecipe
+    navigation.navigate('AddRecipe', { recipe }); // Utilise AddRecipe pour l'édition
   };
 
   const handleDeleteRecipe = (recipeId: string, recipeName: string) => {
@@ -154,14 +184,14 @@ const RecipesScreen: React.FC<Props> = ({ navigation }) => {
                   onPress={() => handleRecipePress(item)}
                 >
                   <View style={styles.recipeContent}>
-                    {item.image ? (
+                    {item.image && item.image.startsWith('http') ? ( // Vérifier si l'URI est valide
                       <Image
                         source={{ uri: item.image }}
                         style={styles.recipeImage}
                         resizeMode="cover"
                       />
                     ) : (
-                      <Text style={styles.recipeImage}>🍳</Text>
+                      <Text style={styles.recipeEmoji}>🍳</Text>
                     )}
                     <View style={styles.recipeDetails}>
                       <Text style={styles.recipeName}>{item.name}</Text>
@@ -171,21 +201,22 @@ const RecipesScreen: React.FC<Props> = ({ navigation }) => {
                       <View style={styles.recipeInfo}>
                         <Text style={styles.infoText}>⏱️ {item.time}</Text>
                         <Text style={styles.infoText}>📈 {item.difficulty}</Text>
-                        <Text style={styles.infoText}>🔥 {item.calories} cal</Text>
+                        <Text style={styles.infoText}>🔥 {item.nutrition?.calories || 0} cal</Text>
                       </View>
                       <View style={styles.recipeStats}>
                         <Text style={styles.statText}>💰 {item.budget}FCFA</Text>
                         <Text style={styles.statText}>
-                          📦 {item.availableIngredients}/{item.ingredients.length} dispo
+                          📦 {item.availableIngredients}/{item.ingredients?.length || 0} dispo
                         </Text>
                       </View>
                       <View style={styles.ingredientsList}>
-                        {item.ingredients.slice(0, 3).map((ingredient: string, idx: number) => (
+                        {item.ingredients?.slice(0, 3).map((ingredient: Ingredient, idx: number) => (
                           <View key={idx} style={styles.ingredientTag}>
-                            <Text style={styles.ingredientText}>{ingredient}</Text>
+                            {/* Afficher le nom de l'ingrédient */}
+                            <Text style={styles.ingredientText}>{ingredient.name}</Text>
                           </View>
                         ))}
-                        {item.ingredients.length > 3 && (
+                        {item.ingredients && item.ingredients.length > 3 && (
                           <View style={styles.ingredientTag}>
                             <Text style={styles.ingredientText}>+{item.ingredients.length - 3}</Text>
                           </View>
@@ -280,8 +311,8 @@ const styles = StyleSheet.create({
   personalRecipeCard: { position: 'relative' },
   personalBadge: {
     position: 'absolute',
-    top: 12,
-    right: 12,
+    top: 0,
+    right: 12, // Positionné à 12px du bord droit
     backgroundColor: '#ffedd5',
     paddingVertical: 4,
     paddingHorizontal: 8,
@@ -301,6 +332,16 @@ const styles = StyleSheet.create({
     height: 60,
     borderRadius: 12,
     marginRight: 16,
+  },
+  recipeEmoji: { // Style pour l'emoji si pas d'image
+    fontSize: 32,
+    width: 60,
+    height: 60,
+    borderRadius: 12,
+    marginRight: 16,
+    textAlign: 'center',
+    textAlignVertical: 'center', // Centrer verticalement pour Android
+    backgroundColor: '#E5E7EB',
   },
   recipeDetails: { flex: 1 },
   recipeName: { fontSize: 16, fontWeight: '600', color: '#1F2937', marginBottom: 4 },

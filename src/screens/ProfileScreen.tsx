@@ -10,15 +10,31 @@ import {
   TextInput,
   StyleSheet,
   Modal,
-  Alert,
+  Alert, // Gardé pour les messages d'erreur/succès
+  Platform, // Ajouté pour la compatibilité iOS/Android si nécessaire pour le style/comportement
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList } from '../navigation/AppNavigator';
 import { auth, db } from '../services/firebase';
-import { doc, onSnapshot, updateDoc, getDoc } from '@react-native-firebase/firestore';
+import { doc, onSnapshot, updateDoc, getDoc, deleteDoc } from '@react-native-firebase/firestore';
+import { EmailAuthProvider, reauthenticateWithCredential, deleteUser } from '@react-native-firebase/auth'; // Nouveaux imports pour l'authentification et la suppression
 
 // Définir les types des props
+// Pour la cohérence, RootStackParamList est définie ici comme une extension de ce qui a été vu
+// Assurez-vous que cette définition correspond à votre AppNavigator réel
+export type RootStackParamList = {
+  Splash: undefined;
+  Auth: undefined;
+  Main: undefined; // Peut être un TabNavigator ou équivalent
+  Recipes: undefined;
+  Profile: undefined;
+  Home: undefined;
+  RecipeDetail: { recipe: any };
+  AddRecipe: {};
+  EditRecipe: { recipe: any };
+  AddMember: { memberToEdit?: Member; memberIndex?: number }; // Ajouté car utilisé dans le code
+};
+
 type ProfileScreenProps = {
   navigation: StackNavigationProp<RootStackParamList, 'Profile'>;
 };
@@ -51,6 +67,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const [editBudgetModal, setEditBudgetModal] = useState(false);
   const [newBudget, setNewBudget] = useState<string>('');
 
+  // Nouveaux états pour la suppression de compte
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   // Vérifier l'état de l'utilisateur et récupérer les données
   useEffect(() => {
     const unsubscribeAuth = auth.onAuthStateChanged((user) => {
@@ -82,21 +103,38 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             };
             const members = data.members || [];
 
-            // Mettre à jour Firestore si nécessaire
-            if (!data.preferences || !data.members) {
-              console.log('Initialisation des champs preferences et members dans Firestore');
-              try {
-                await updateDoc(userDocRef, {
-                  preferences: preferences,
-                  members: members,
-                });
-              } catch (updateError: any) {
-                console.error('Erreur lors de l\'initialisation des champs:', updateError);
-                setError('Erreur lors de la mise à jour des données. Vérifiez votre connexion.');
-                setLoading(false);
-                return;
+            // Mettre à jour Firestore si nécessaire (s'il y a des champs manquants)
+            // On utilise getDoc d'abord pour éviter une boucle infinie de onSnapshot si updateDoc
+            // déclenche une nouvelle snapshot alors que les données sont déjà initialisées
+            const currentDoc = await getDoc(userDocRef);
+            if (currentDoc.exists()) {
+              const currentData = currentDoc.data() as UserData;
+              let needsUpdate = false;
+              const updatePayload: any = {};
+
+              if (currentData.preferences === undefined) {
+                updatePayload.preferences = preferences;
+                needsUpdate = true;
+              }
+              if (currentData.members === undefined) {
+                updatePayload.members = members;
+                needsUpdate = true;
+              }
+
+              if (needsUpdate) {
+                console.log('Initialisation des champs preferences et members dans Firestore.');
+                try {
+                  await updateDoc(userDocRef, updatePayload);
+                  console.log('Champs preferences et members initialisés avec succès.');
+                } catch (updateError: any) {
+                  console.error('Erreur lors de l\'initialisation des champs:', updateError);
+                  setError('Erreur lors de la mise à jour des données. Vérifiez votre connexion.');
+                  setLoading(false);
+                  return;
+                }
               }
             }
+
 
             const updatedUserData = { ...data, preferences, members };
             setUserData(updatedUserData);
@@ -138,6 +176,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     setLoading(true);
     setError(null);
     console.log('Retenter la connexion...');
+    // Relance la logique useEffect en "simulant" un changement d'état important si nécessaire
+    // Ou simplement, les listeners onAuthStateChanged/onSnapshot devraient se réactiver
   };
 
   // Gérer les préférences alimentaires
@@ -155,17 +195,18 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       ...currentPreferences,
       [key]: !currentPreferences[key],
     };
-    setUserData({ ...userData, preferences: updatedPreferences });
+    setUserData({ ...userData, preferences: updatedPreferences }); // Mise à jour optimiste
 
     const user = auth.currentUser;
     if (user) {
       try {
         const userDocRef = doc(db, 'users', user.uid);
         await updateDoc(userDocRef, { preferences: updatedPreferences });
+        console.log('Préférences mises à jour dans Firestore.');
       } catch (error: any) {
         console.error('Erreur lors de la mise à jour des préférences:', error);
         Alert.alert('Erreur', 'Impossible de sauvegarder les préférences. Vérifiez votre connexion.');
-        setUserData({ ...userData, preferences: currentPreferences });
+        setUserData({ ...userData, preferences: currentPreferences }); // Revenir en arrière en cas d'erreur
       }
     }
   };
@@ -173,17 +214,18 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   // Mettre à jour le budget
   const handleUpdateBudget = async () => {
     if (!userData || !newBudget) {
+      Alert.alert('Erreur', 'Veuillez entrer une valeur pour le budget.');
       return;
     }
 
     const budgetValue = parseInt(newBudget);
     if (isNaN(budgetValue) || budgetValue <= 0) {
-      Alert.alert('Erreur', 'Veuillez entrer un budget valide.');
+      Alert.alert('Erreur', 'Veuillez entrer un budget valide (nombre positif).');
       return;
     }
 
     const oldBudget = userData.weeklyBudget;
-    setUserData({ ...userData, weeklyBudget: budgetValue });
+    setUserData({ ...userData, weeklyBudget: budgetValue }); // Mise à jour optimiste
     setEditBudgetModal(false);
 
     const user = auth.currentUser;
@@ -191,10 +233,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       try {
         const userDocRef = doc(db, 'users', user.uid);
         await updateDoc(userDocRef, { weeklyBudget: budgetValue });
+        console.log('Budget hebdomadaire mis à jour dans Firestore.');
       } catch (error: any) {
         console.error('Erreur lors de la mise à jour du budget:', error);
         Alert.alert('Erreur', 'Impossible de sauvegarder le budget. Vérifiez votre connexion.');
-        setUserData({ ...userData, weeklyBudget: oldBudget });
+        setUserData({ ...userData, weeklyBudget: oldBudget }); // Revenir en arrière en cas d'erreur
       }
     }
   };
@@ -208,8 +251,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     }
 
     Alert.alert(
-      'Confirmation',
-      'Voulez-vous vraiment supprimer ce membre ?',
+      'Confirmation de suppression',
+      'Voulez-vous vraiment supprimer ce membre de votre famille ? Cette action est irréversible.',
       [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -226,13 +269,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                   (_: Member, idx: number) => idx !== memberIndex
                 );
                 await updateDoc(userDocRef, { members: updatedMembers });
-                console.log('Membre supprimé à l\'index:', memberIndex);
-                // Mise à jour locale pour éviter un décalage
-                setUserData((prev) => prev ? { ...prev, members: updatedMembers } : null);
+                console.log('Membre supprimé à l\'index:', memberIndex, 'dans Firestore.');
+                Alert.alert('Succès', 'Membre de la famille supprimé.');
+                // onSnapshot devrait mettre à jour automatiquement le userData
+              } else {
+                console.warn('Document utilisateur non trouvé lors de la suppression du membre.');
+                Alert.alert('Erreur', 'Document utilisateur non trouvé.');
               }
             } catch (error: any) {
-              console.error('Erreur lors de la suppression:', error.message);
-              Alert.alert('Erreur', 'Échec de la suppression: ' + (error.message || 'Erreur inconnue'));
+              console.error('Erreur lors de la suppression du membre:', error.message);
+              Alert.alert('Erreur', 'Échec de la suppression du membre: ' + (error.message || 'Erreur inconnue'));
             }
           },
         },
@@ -245,8 +291,10 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const handleLogout = async () => {
     try {
       await auth.signOut();
+      Alert.alert('Déconnexion', 'Vous avez été déconnecté avec succès.');
       navigation.replace('Auth');
     } catch (error: any) {
+      console.error('Erreur lors de la déconnexion:', error.message);
       Alert.alert('Erreur', error.message || 'Échec de la déconnexion.');
     }
   };
@@ -254,6 +302,69 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   // Gérer la modification d'un membre
   const handleEditMember = (member: Member, index: number) => {
     navigation.navigate('AddMember', { memberToEdit: member, memberIndex: index });
+  };
+
+  // Fonction pour afficher la modale de suppression de compte
+  const handleDeleteAccountPress = () => {
+    setDeletePassword(''); // Réinitialise le champ de mot de passe
+    setDeleteError(null); // Réinitialise l'erreur
+    setShowDeleteModal(true);
+  };
+
+  // Fonction de confirmation de suppression de compte
+  const handleConfirmDeleteAccount = async () => {
+    setDeleteError(null);
+    if (!deletePassword) {
+      setDeleteError('Veuillez entrer votre mot de passe pour confirmer.');
+      return;
+    }
+
+    const user = auth.currentUser;
+    if (!user) {
+      Alert.alert('Erreur', 'Utilisateur non connecté. Veuillez vous reconnecter.');
+      setShowDeleteModal(false);
+      navigation.replace('Auth');
+      return;
+    }
+
+    try {
+      // Étape 1: Réauthentifier l'utilisateur
+      // C'est crucial pour les opérations sensibles comme la suppression de compte
+      const credential = EmailAuthProvider.credential(user.email!, deletePassword);
+      await user.reauthenticateWithCredential(credential);
+      console.log('Réauthentification réussie pour la suppression du compte.');
+
+      // Étape 2: Supprimer les données de l'utilisateur dans Firestore
+      // Ceci est fait avant de supprimer l'utilisateur de l'authentification
+      // car après la suppression du compte Auth, l'UID ne sera plus valide.
+      const userDocRef = doc(db, 'users', user.uid);
+      await deleteDoc(userDocRef);
+      console.log('Données Firestore de l\'utilisateur supprimées.');
+
+      // Étape 3: Supprimer l'utilisateur de Firebase Authentication
+      await deleteUser(user); // Utiliser la fonction deleteUser
+      console.log('Compte utilisateur Firebase Authentication supprimé avec succès.');
+
+      Alert.alert('Succès', 'Votre compte a été supprimé avec toutes les données associées.');
+      setShowDeleteModal(false);
+      navigation.replace('Auth'); // Navigue vers l'écran d'authentification après la suppression
+    } catch (error: any) {
+      console.error('Erreur lors de la suppression du compte:', error);
+      if (error.code === 'auth/wrong-password') {
+        setDeleteError('Mot de passe incorrect. Veuillez réessayer.');
+      } else if (error.code === 'auth/user-not-found') {
+        setDeleteError('Utilisateur introuvable. Veuillez vous reconnecter.');
+        setShowDeleteModal(false);
+        navigation.replace('Auth');
+      } else if (error.code === 'auth/requires-recent-login') {
+        setDeleteError('Cette opération est sensible et nécessite une réauthentification récente. Veuillez vous déconnecter, vous reconnecter, puis réessayez la suppression.');
+        setShowDeleteModal(false); // Ferme la modale, suggère de se reconnecter
+        auth.signOut(); // Force la déconnexion pour obliger la réauthentification
+        navigation.replace('Auth');
+      } else {
+        setDeleteError('Erreur lors de la suppression du compte: ' + (error.message || 'Erreur inconnue'));
+      }
+    }
   };
 
   if (loading) {
@@ -271,7 +382,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         <MaterialCommunityIcons name="alert-circle-outline" size={48} color="#ef4444" />
         <Text style={styles.errorText}>{error}</Text>
         <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
-          <MaterialCommunityIcons name="refresh" size={20} color="#fff" />
+          <Text>
+            <MaterialCommunityIcons name="refresh" size={20} color="#fff" />
+          </Text>
           <Text style={styles.retryButtonText}>Réessayer</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
@@ -294,13 +407,19 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       {/* Header */}
       <View style={styles.headerContainer}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <MaterialCommunityIcons name="arrow-left" size={20} color="#374151" />
+          <Text>
+            <MaterialCommunityIcons name="arrow-left" size={20} color="#374151" />
+          </Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Mon Profil</Text>
         <View style={styles.headerIcons}>
-          <MaterialCommunityIcons name="bell-outline" size={24} color="#fff" />
+          <Text>
+            <MaterialCommunityIcons name="bell-outline" size={24} color="#fff" />
+          </Text>
           <View style={styles.userIcon}>
-            <MaterialCommunityIcons name="account" size={20} color="#fff" />
+            <Text>
+              <MaterialCommunityIcons name="account" size={20} color="#fff" />
+            </Text>
           </View>
         </View>
       </View>
@@ -311,7 +430,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           <View style={styles.section}>
             <View style={styles.userProfile}>
               <View style={styles.avatarContainer}>
-                <MaterialCommunityIcons name="account" size={32} color="#fff" />
+                <Text>
+                  <MaterialCommunityIcons name="account" size={32} color="#fff" />
+                </Text>
               </View>
               <View>
                 <Text style={styles.userName}>{`${userData.firstName} ${userData.lastName}`}</Text>
@@ -370,7 +491,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               style={styles.addButton}
               onPress={() => navigation.navigate('AddMember')}
             >
-              <MaterialCommunityIcons name="plus" size={16} color="#6B7280" />
+              <Text>
+                <MaterialCommunityIcons name="plus" size={16} color="#6B7280" />
+              </Text>
               <Text style={styles.addButtonText}>Ajouter un membre</Text>
             </TouchableOpacity>
           </View>
@@ -389,15 +512,15 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                 onPress={() => togglePreference(key as keyof NonNullable<UserData['preferences']>)}
               >
                 <Text style={styles.preferenceLabel}>{label}</Text>
-                <View
+                <View // Revert from Animated.View to View
                   style={[
-                    styles.toggleContainer,
+                    styles.toggleSwitchContainer,
                     userData.preferences &&
                       userData.preferences[key as keyof UserData['preferences']] &&
                       styles.toggleActive,
                   ]}
                 >
-                  <View
+                  <View // Revert from Animated.View to View
                     style={[
                       styles.toggleCircle,
                       userData.preferences &&
@@ -433,6 +556,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <Text style={styles.logoutText}>Se déconnecter</Text>
           </TouchableOpacity>
+
+          {/* Bouton de suppression de compte */}
+          <TouchableOpacity style={styles.deleteAccountButton} onPress={handleDeleteAccountPress}>
+            <Text style={styles.deleteAccountButtonText}>Supprimer mon compte</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -452,6 +580,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               keyboardType="numeric"
               value={newBudget}
               onChangeText={setNewBudget}
+              placeholderTextColor="#9CA3AF"
             />
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -460,8 +589,46 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               >
                 <Text style={styles.cancelButtonText}>Annuler</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.addMemberButton} onPress={handleUpdateBudget}>
-                <Text style={styles.addMemberButtonText}>Enregistrer</Text>
+              <TouchableOpacity style={styles.actionButtonPrimary} onPress={handleUpdateBudget}>
+                <Text style={styles.actionButtonPrimaryText}>Enregistrer</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modale pour la suppression de compte */}
+      <Modal
+        visible={showDeleteModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowDeleteModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Supprimer le compte</Text>
+            <Text style={styles.modalMessage}>
+              Êtes-vous sûr de vouloir supprimer votre compte ? Cette action est irréversible et
+              supprimera toutes vos données. Veuillez confirmer votre mot de passe.
+            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Votre mot de passe"
+              secureTextEntry={true}
+              value={deletePassword}
+              onChangeText={setDeletePassword}
+              placeholderTextColor="#9CA3AF"
+            />
+            {deleteError && <Text style={styles.deleteErrorMessage}>{deleteError}</Text>}
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setShowDeleteModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.deleteConfirmButton} onPress={handleConfirmDeleteAccount}>
+                <Text style={styles.deleteConfirmButtonText}>Supprimer définitivement</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -512,10 +679,14 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     backgroundColor: '#f97316',
-    padding: 16,
+    paddingTop: Platform.OS === 'ios' ? 48 : 24, // Ajustement pour iOS statusBar
+    paddingBottom: 16,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
   },
   backButton: {
     width: 40,
@@ -696,7 +867,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#1F2937',
   },
-  toggleContainer: {
+  // Renommé pour éviter le conflit avec le toggleContainer global du AuthScreen
+  toggleSwitchContainer: {
     width: 48,
     height: 24,
     backgroundColor: '#E5E7EB',
@@ -753,12 +925,25 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 16, // Espacement avant le bouton de suppression
   },
   logoutText: {
     fontSize: 16,
     fontWeight: '500',
     color: '#ef4444',
+  },
+  // Styles pour la suppression de compte
+  deleteAccountButton: {
+    backgroundColor: '#dc2626', // Rouge vif pour une action destructive
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 32, // Espacement en bas de la page
+  },
+  deleteAccountButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
   },
   modalOverlay: {
     flex: 1,
@@ -769,33 +954,48 @@ const styles = StyleSheet.create({
   modalContent: {
     backgroundColor: '#fff',
     borderRadius: 16,
-    padding: 16,
+    padding: 20, // Légèrement plus de padding
     width: '90%',
     maxWidth: 400,
+    shadowColor: '#000', // Ombres pour la modale
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 5,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: 'bold',
     color: '#1F2937',
     marginBottom: 16,
+    textAlign: 'center', // Centrer le titre de la modale
+  },
+  modalMessage: {
+    fontSize: 14,
+    color: '#4B5563',
+    marginBottom: 20,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#D1D5DB',
     borderRadius: 12,
     padding: 12,
     marginBottom: 12,
     fontSize: 16,
     color: '#1F2937',
+    backgroundColor: '#F9FAFB', // Fond légèrement gris pour l'input
   },
   modalButtons: {
     flexDirection: 'row',
     gap: 16,
     marginTop: 16,
+    justifyContent: 'center',
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#E5E7EB',
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
@@ -803,19 +1003,39 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#6B7280',
+    color: '#4B5563',
   },
-  addMemberButton: {
+  // Bouton général pour les actions primaires (Enregistrer, etc.)
+  actionButtonPrimary: {
     flex: 1,
     backgroundColor: '#f97316',
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
   },
-  addMemberButtonText: {
+  actionButtonPrimaryText: {
     fontSize: 16,
     fontWeight: '500',
     color: '#fff',
+  },
+  // Bouton spécifique pour la confirmation de suppression
+  deleteConfirmButton: {
+    flex: 1,
+    backgroundColor: '#ef4444', // Rouge vif pour confirmer la suppression
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  deleteConfirmButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#fff',
+  },
+  deleteErrorMessage: {
+    color: '#ef4444',
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 10,
   },
 });
 

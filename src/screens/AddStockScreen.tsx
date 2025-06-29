@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  Platform,
+import { 
+  View, 
+  Text, 
+  TouchableOpacity, 
+  StyleSheet, 
+  ScrollView, 
+  TextInput, 
+  Platform 
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker from '@react-native-community/datetimepicker'; 
 import { RootStackParamList } from '../types';
 import { useAppContext } from '../context/AppContext';
 
@@ -23,11 +23,11 @@ const AddStockScreen: React.FC<Props> = ({ navigation }) => {
   const { setStock } = useAppContext();
 
   // État local pour le nouvel élément de stock à ajouter
-  const [newItem, setNewItem] = useState({
-    name: '',
-    quantity: '',
-    expiry: '',
-    status: 'good' as 'good' | 'warning' | 'urgent',
+  const [newItem, setNewItem] = useState({ 
+    name: '', 
+    quantity: '', 
+    expiry: '', 
+    status: 'good' as 'good' | 'warning' | 'urgent' 
   });
 
   // État pour gérer l'affichage du sélecteur de date
@@ -41,7 +41,7 @@ const AddStockScreen: React.FC<Props> = ({ navigation }) => {
    */
   const onDateChange = (event: any, chosenDate?: Date) => {
     // Masque le sélecteur de date après sélection (ou annulation)
-    setShowDatePicker(Platform.OS === 'ios');
+    setShowDatePicker(Platform.OS === 'ios'); 
     if (chosenDate) {
       setSelectedDate(chosenDate);
       // Formatage de la date en 'YYYY-MM-DD'
@@ -65,14 +65,14 @@ const AddStockScreen: React.FC<Props> = ({ navigation }) => {
   const handleAddStock = () => {
     if (newItem.name && newItem.quantity && newItem.expiry) {
       setStock((prevStock) => [
-        ...prevStock,
-        { ...newItem, expiry: new Date(newItem.expiry).toISOString().split('T')[0] },
+        ...prevStock, 
+        { ...newItem, expiry: new Date(newItem.expiry).toISOString().split('T')[0] }
       ]);
-
+      
       setNewItem({ name: '', quantity: '', expiry: '', status: 'good' });
       navigation.goBack();
     } else {
-      console.warn('Veuillez remplir tous les champs.');
+      console.warn('Veuillez remplir tous les champs.'); 
     }
   };
 
@@ -88,7 +88,7 @@ const AddStockScreen: React.FC<Props> = ({ navigation }) => {
           {/* Titre de l'écran */}
           <Text style={styles.headerTitle}>Ajouter un produit</Text>
           {/* Espacement pour centrer le titre, ou icônes futures si nécessaire */}
-          <View style={styles.headerIconsPlaceholder} />
+          <View style={styles.headerIconsPlaceholder} /> 
         </View>
       </LinearGradient>
 
@@ -105,7 +105,7 @@ const AddStockScreen: React.FC<Props> = ({ navigation }) => {
           value={newItem.name}
           onChangeText={(text) => setNewItem({ ...newItem, name: text })}
         />
-
+        
         {/* Champ de saisie pour la quantité */}
         <View style={styles.labelContainer}>
           <MaterialCommunityIcons name="weight-kilogram" size={20} color="#374151" style={styles.labelIcon} />
@@ -117,7 +117,7 @@ const AddStockScreen: React.FC<Props> = ({ navigation }) => {
           value={newItem.quantity}
           onChangeText={(text) => setNewItem({ ...newItem, quantity: text })}
         />
-
+        
         {/* Champ de sélection de la date d'expiration */}
         <View style={styles.labelContainer}>
           <MaterialCommunityIcons name="calendar" size={20} color="#374151" style={styles.labelIcon} />
@@ -125,22 +125,22 @@ const AddStockScreen: React.FC<Props> = ({ navigation }) => {
         </View>
         <TouchableOpacity style={styles.input} onPress={handleShowDatePicker}>
           <Text style={newItem.expiry ? styles.dateText : styles.datePlaceholder}>
-            {newItem.expiry || 'Sélectionnez une date (AAAA-MM-JJ)'}
+            {newItem.expiry || "Sélectionnez une date (AAAA-MM-JJ)"}
           </Text>
         </TouchableOpacity>
-
+        
         {/* Sélecteur de date conditionnel */}
         {showDatePicker && (
           <DateTimePicker
             testID="dateTimePicker"
             value={selectedDate}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            mode="date" 
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'} 
             onChange={onDateChange}
-            minimumDate={new Date()}
+            minimumDate={new Date()} 
           />
         )}
-
+        
         {/* Section de sélection du statut */}
         <View style={styles.labelContainer}>
             <MaterialCommunityIcons name="information" size={20} color="#374151" style={styles.labelIcon} />
@@ -150,42 +150,42 @@ const AddStockScreen: React.FC<Props> = ({ navigation }) => {
           {/* Bouton pour le statut "Bon état" */}
           <TouchableOpacity
             style={[
-              styles.statusButton,
-              newItem.status === 'good' && styles.statusSelectedGood,
+              styles.statusButton, 
+              newItem.status === 'good' && styles.statusSelectedGood
             ]}
             onPress={() => setNewItem({ ...newItem, status: 'good' })}
           >
             <Text style={[
-              styles.statusText,
-              newItem.status === 'good' && styles.statusTextSelected,
+              styles.statusText, 
+              newItem.status === 'good' && styles.statusTextSelected
             ]}>Bon état</Text>
           </TouchableOpacity>
-
+          
           {/* Bouton pour le statut "Attention" */}
           <TouchableOpacity
             style={[
-              styles.statusButton,
-              newItem.status === 'warning' && styles.statusSelectedWarning,
+              styles.statusButton, 
+              newItem.status === 'warning' && styles.statusSelectedWarning
             ]}
             onPress={() => setNewItem({ ...newItem, status: 'warning' })}
           >
             <Text style={[
-              styles.statusText,
-              newItem.status === 'warning' && styles.statusTextSelected,
+              styles.statusText, 
+              newItem.status === 'warning' && styles.statusTextSelected
             ]}>Attention</Text>
           </TouchableOpacity>
-
+          
           {/* Bouton pour le statut "Urgent" */}
           <TouchableOpacity
             style={[
-              styles.statusButton,
-              newItem.status === 'urgent' && styles.statusSelectedUrgent,
+              styles.statusButton, 
+              newItem.status === 'urgent' && styles.statusSelectedUrgent
             ]}
             onPress={() => setNewItem({ ...newItem, status: 'urgent' })}
           >
             <Text style={[
-              styles.statusText,
-              newItem.status === 'urgent' && styles.statusTextSelected,
+              styles.statusText, 
+              newItem.status === 'urgent' && styles.statusTextSelected
             ]}>Urgent</Text>
           </TouchableOpacity>
         </View>
@@ -200,33 +200,33 @@ const AddStockScreen: React.FC<Props> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F3F4F6',
+  container: { 
+    flex: 1, 
+    backgroundColor: '#F3F4F6' 
   },
-  header: {
-    paddingTop: 48,
-    paddingBottom: 16,
-    paddingHorizontal: 16,
+  header: { 
+    paddingTop: 48, 
+    paddingBottom: 16, 
+    paddingHorizontal: 16 
   },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  headerContent: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between' 
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
+  headerTitle: { 
+    fontSize: 20, 
+    fontWeight: 'bold', 
+    color: '#fff' 
   },
-  headerIconsPlaceholder: {
-    width: 24,
+  headerIconsPlaceholder: { 
+    width: 24, 
     marginHorizontal: 8,
   },
-  formContent: {
-    padding: 16,
-    flexGrow: 1,
-    justifyContent: 'center',
+  formContent: { 
+    padding: 16, 
+    flexGrow: 1, 
+    justifyContent: 'center', 
   },
   labelContainer: { // Nouveau style pour le conteneur icône + label
     flexDirection: 'row',
@@ -240,18 +240,18 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#374151',
+    color: '#374151', 
   },
   input: {
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: '#D1D5DB', 
     borderRadius: 12,
     padding: 14,
     marginBottom: 12,
     fontSize: 16,
     color: '#1F2937',
-    backgroundColor: '#fff',
-    justifyContent: 'center',
+    backgroundColor: '#fff', 
+    justifyContent: 'center', 
   },
   dateText: {
     fontSize: 16,
@@ -259,67 +259,67 @@ const styles = StyleSheet.create({
   },
   datePlaceholder: {
     fontSize: 16,
-    color: '#6B7280',
+    color: '#6B7280', 
   },
-  statusContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+  statusContainer: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-around', 
     marginTop: 8,
     marginBottom: 24,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#E5E7EB', 
     borderRadius: 12,
     padding: 6,
   },
-  statusLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
+  statusLabel: { 
+    fontSize: 16, 
+    fontWeight: '600', 
+    color: '#374151', 
     // marginBottom: 10, // Retiré car le labelContainer gère déjà l'espacement
   },
   statusButton: {
-    flex: 1,
+    flex: 1, 
     paddingVertical: 10,
     borderRadius: 10,
     alignItems: 'center',
-    marginHorizontal: 4,
-    backgroundColor: 'transparent',
+    marginHorizontal: 4, 
+    backgroundColor: 'transparent', 
   },
-  statusSelectedGood: {
-    backgroundColor: '#d1fae5',
-    borderWidth: 1,
-    borderColor: '#16a34a',
+  statusSelectedGood: { 
+    backgroundColor: '#d1fae5', 
+    borderWidth: 1, 
+    borderColor: '#16a34a' 
   },
-  statusSelectedWarning: {
-    backgroundColor: '#fefce8',
-    borderWidth: 1,
-    borderColor: '#ca8a04',
+  statusSelectedWarning: { 
+    backgroundColor: '#fefce8', 
+    borderWidth: 1, 
+    borderColor: '#ca8a04' 
   },
-  statusSelectedUrgent: {
-    backgroundColor: '#fef2f2',
-    borderWidth: 1,
-    borderColor: '#b91c1c',
+  statusSelectedUrgent: { 
+    backgroundColor: '#fef2f2', 
+    borderWidth: 1, 
+    borderColor: '#b91c1c' 
   },
-  statusText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#4B5563',
+  statusText: { 
+    fontSize: 14, 
+    fontWeight: '500', 
+    color: '#4B5563', 
   },
   statusTextSelected: {
-    fontWeight: 'bold',
-    color: '#1F2937',
+    fontWeight: 'bold', 
+    color: '#1F2937', 
   },
   addButton: {
-    backgroundColor: '#a855f7',
+    backgroundColor: '#a855f7', 
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
-    marginTop: 20,
-    elevation: 3,
+    marginTop: 20, 
+    elevation: 3, 
   },
-  addButtonText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#fff',
+  addButtonText: { 
+    fontSize: 18, 
+    fontWeight: '700', 
+    color: '#fff' 
   },
 });
 

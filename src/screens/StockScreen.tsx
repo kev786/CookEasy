@@ -1,5 +1,6 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+/* eslint-disable react-native/no-inline-styles */
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native'; // Importez Alert ici
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -24,12 +25,34 @@ const StockScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   /**
-   * Gère la suppression d'un élément de stock.
-   * Filtre le stock pour retirer l'élément à l'index donné.
+   * Gère la suppression d'un élément de stock avec une boîte de dialogue de confirmation.
+   * @param index L'index de l'élément à supprimer dans le tableau 'stock'.
+   * @param itemName Le nom de l'élément à supprimer (pour le message de confirmation).
    */
-  const handleDeleteStock = (index: number) => {
-    // Ici, vous mettriez à jour le stock en filtrant l'élément à supprimer
-    setStock(prevStock => prevStock.filter((_, i) => i !== index));
+  const handleDeleteStock = (index: number, itemName: string) => {
+    Alert.alert(
+      'Confirmer la suppression', // Titre de l'alerte
+      `Voulez-vous vraiment supprimer "${itemName}" de votre stock ?`, // Message de l'alerte
+      [
+        {
+          text: 'Annuler',
+          onPress: () => console.log('Suppression annulée'), // Action si l'utilisateur annule
+          style: 'cancel',
+        },
+        {
+          text: 'Supprimer',
+          onPress: () => {
+            // Action si l'utilisateur confirme : filtre le stock pour retirer l'élément
+            setStock((prevStock) => prevStock.filter((_, i) => i !== index));
+            console.log(`"${itemName}" supprimé du stock.`);
+            // Vous pouvez ajouter un petit message de succès ici si vous le souhaitez
+            // Alert.alert('Succès', `${itemName} a été supprimé.`);
+          },
+          style: 'destructive', // Style pour indiquer une action potentiellement irréversible
+        },
+      ],
+      { cancelable: true } // Permet de fermer l'alerte en tapant en dehors
+    );
   };
 
   return (
@@ -103,14 +126,14 @@ const StockScreen: React.FC<Props> = ({ navigation }) => {
                 {/* Bouton d'édition */}
                 <TouchableOpacity
                   style={styles.actionButton}
-                  onPress={() => handleEditStock(item, idx)} // <-- CHANGEMENT ICI : Passer l'item et l'index
+                  onPress={() => handleEditStock(item, idx)}
                 >
                   <MaterialCommunityIcons name="pencil" size={16} color="#3b82f6" />
                 </TouchableOpacity>
                 {/* Bouton de suppression */}
                 <TouchableOpacity
                   style={styles.actionButton}
-                  onPress={() => handleDeleteStock(idx)}
+                  onPress={() => handleDeleteStock(idx, item.name)} // Passer le nom de l'item
                 >
                   <MaterialCommunityIcons name="trash-can-outline" size={16} color="#ef4444" />
                 </TouchableOpacity>
